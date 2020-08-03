@@ -8,3 +8,6 @@ LENET-5 |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [
 RESNET18 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
 RESNET34 |<ul><li>- [x] </li> |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
 RESNET50 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>| <ul><li>- [ ] </li>
+
+## Files directory
+### Scylla.home:
