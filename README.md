@@ -4,6 +4,7 @@
 ## TODO LIST
 - [x] Set up rollback. (Even program crashed, we could start from last checkpoint)
 - [x] Set up walltime limit 48 hours. Every two days, the partial results will be transferred to storage.
+- [ ] Mask floating point after multiplication.
 
 GPU\Model | Resnet18 acc | Resnet34 acc | Resnet50 acc | Resnet18 am | Resnet34 am | Resnet50 am
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | -------------
@@ -21,13 +22,13 @@ RESNET50 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>| <ul><li>-
   
 ## Final Test Accuracy
 
-Final Acc/Ref | ACC32 | ACC16 | AM32 | AM16 
------------- | ------------- | ------------- | ------------- | -------------
-LENET-300-100 ||||
-LENET-5 ||||
-RESNET18 |93.48%|||
-RESNET34 |93.67%|||
-RESNET50 |93.66%|||
+Final Acc/Ref | ACC32 | ACC16 | AM32 | AM16 | FP16
+------------ | ------------- | ------------- | ------------- | ------------- | -------------
+LENET-300-100 |||||
+LENET-5 |||||
+RESNET18 |93.48%||||
+RESNET34 |93.67%||||
+RESNET50 |93.66%||||
 
 ## Files directory
 ### Scylla.home:
