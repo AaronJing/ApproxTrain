@@ -4,7 +4,7 @@
 ## TODO LIST
 - [x] Set up rollback. (Even program crashed, we could start from last checkpoint)
 - [x] Set up walltime limit 48 hours. Every two days, the partial results will be transferred to storage.
-- [ ] Mask floating point after multiplication.
+- [ ] Mask floating point for Bfloat16 after multiplication.
 
 GPU\Model | Resnet18 acc | Resnet34 acc | Resnet50 acc | Resnet18 am | Resnet34 am | Resnet50 am
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | -------------
