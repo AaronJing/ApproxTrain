@@ -1,4 +1,6 @@
 # AMDNN
+## Our implementation with accurate multiplier.
+Identical output with tensorflow official implementation will ensure the correctness of our implementation.
 ## TODO LIST
 
 Model | ACC32 | ACC16 | AM32 | AM16 
