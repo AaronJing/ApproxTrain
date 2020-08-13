@@ -40,3 +40,5 @@ module  unload intel-mkl/2019.2.187
 module load tensorflow/1.12-cudnn7.1-py36
 ./gpu_compiler
 ```
+## NCI information
+New /scratch space - Very large (!) quotas, but files will be automatically deleted after 90 days
