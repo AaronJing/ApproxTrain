@@ -43,6 +43,6 @@ module load tensorflow/1.12-cudnn7.1-py36
 ## NCI information
 New /scratch space - Very large (!) quotas, but files will be automatically deleted after 90 days
 ## NCI error
-5:12AM 15/08/2020 Resnet34-AM32 Bus error at the epoch 87 and restart
+5:12AM 15/08/2020 Resnet34-AM32 Bus error at the epoch 87, batch 43 and restart
 5:12AM 15/08/2020 Resnet34-AM16 Bus error at the beginning. 
 5:12AM 15/08/2020 Resnet50-AM16 Bus error at the beginning.
