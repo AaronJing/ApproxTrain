@@ -7,19 +7,15 @@
 - [ ] Mask floating point for Bfloat16 after multiplication.
 - [x] T_SIZE should be 0 or 16 bits.
 
-GPU\Model | Resnet18 acc | Resnet34 acc | Resnet50 acc | Resnet18 am | Resnet34 am | Resnet50 am
------------- | ------------- | ------------- | ------------- | ------------- | ------------- | -------------
-GTX1080|||
-Gadi(volta)|0.6h/epoch or 7.5days/300epoch|0.92h/epoch or 11.45 days/300epoch|2.38h/epoch or 29.8 days/300epoch|0.73h/epoch or 9.15days/300epoch||
-GTX1080 x2 (deep bayes)|||
+
 
 Model | TF | ACC32 | ACC16 | AM32 | AM16 | FP16
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | -------------
 LENET-300-100 |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
 LENET-5 |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
-RESNET18 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] Running</li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
-RESNET34 |<ul><li>- [x] </li> |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] Running</li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
-RESNET50 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>| <ul><li>- [ ] Running</li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
+RESNET18 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [ ] </li>
+RESNET34 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
+RESNET50 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>| <ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
 
 ## Final Test Accuracy
 
