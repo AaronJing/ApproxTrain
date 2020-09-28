@@ -11,11 +11,11 @@
 
 Model | TF | ACC32 | ACC16 | AM32 | AM16 | FP16
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | -------------
-LENET-300-100 |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
-LENET-5 |<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
+LENET-300-100 |1 days remain|1 days remain|1 days remain|1 days remain|1 days remain|<ul><li>- [ ] </li>
+LENET-5 |1 days remain|1 days remain|1 days remain|1 days remain|1 days remain|<ul><li>- [ ] </li>
 RESNET18 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [ ] </li>
-RESNET34 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
-RESNET50 |<ul><li>- [x] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>| <ul><li>- [ ] </li>|<ul><li>- [ ] </li>|<ul><li>- [ ] </li>
+RESNET34 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|5 days remain|<ul><li>- [x] </li>|3 days remain|<ul><li>- [ ] </li>
+RESNET50 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|8 days remain| 4 days remain|10 days remain|<ul><li>- [ ] </li>
 
 ## Final Test Accuracy
 
@@ -24,8 +24,8 @@ Final Acc/Ref | TF | ACC32 | ACC16 | AM32 | AM16 | FP16
 LENET-300-100 ||||||
 LENET-5 ||||||
 RESNET18 |93.48%/91.25 %|93.55%||||
-RESNET34 |93.67%/92.49 %|||||
-RESNET50 |93.66%/92.83 %|||||
+RESNET34 |93.67%/92.49 %|93.63%||||
+RESNET50 |93.66%/92.83 %|93.65%||||
 
 ## Files directory
 ### Scylla.home:
