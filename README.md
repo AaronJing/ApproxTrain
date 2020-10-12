@@ -14,8 +14,8 @@ Model | TF | ACC32 | ACC16 | AM32 | AM16 | FP16
 LENET-300-100 |1 days remain|1 days remain|1 days remain|1 days remain|1 days remain|<ul><li>- [ ] </li>
 LENET-5 |1 days remain|1 days remain|1 days remain|1 days remain|1 days remain|<ul><li>- [ ] </li>
 RESNET18 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [ ] </li>
-RESNET34 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|5 days remain|<ul><li>- [x] </li>|3 days remain|<ul><li>- [ ] </li>
-RESNET50 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|8 days remain| 4 days remain|10 days remain|<ul><li>- [ ] </li>
+RESNET34 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [ ] </li>
+RESNET50 |<ul><li>- [x] </li>|<ul><li>- [x] </li>|<ul><li>- [x] </li>| <ul><li>- [x] </li>|2 days remaining|<ul><li>- [ ] </li>
 
 ## Final Test Accuracy
 
