@@ -13,7 +13,10 @@
 * **gpu_compile.sh** GPU compliation (it also compiles CPU)
 * **finally.pbs** gadi script example
 
+## Installation
 
+### Tensorflow gpu 1.12
+pip3 install --upgrade pip
 
 
 ## Final Test Accuracy
