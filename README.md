@@ -17,6 +17,8 @@
 
 ### Tensorflow gpu 1.12
 pip3 install --upgrade pip
+### keras
+pip3 --user install keras==2.2.0
 
 
 ## Final Test Accuracy
