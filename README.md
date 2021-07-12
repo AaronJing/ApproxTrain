@@ -22,7 +22,25 @@ pip3 --user install keras==2.2.0
 ### cuDNN v7.1.4. cuda9.0
 https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v7.1.4/prod/9.0_20180516/cudnn-9.0-linux-x64-v7.1
 
+## Profile (no AM)
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.0362 s
+Forward | GEMM | 0.09 s
+BackwardError | Im2Col | 0.0145359s
+BackwardError | gemm_inv | 1.69s
+BackwardFilter | filtergrad | 2.47s
+Total | - | 4.31226s
 
+## Profile (with AM)
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.0318 s
+Forward | GEMM | 7.6451 s
+BackwardError | Im2Col | 0.0147s
+BackwardError | gemm_inv | 8.79238s
+BackwardFilter | filtergrad | 12.578s
+Total | - | 29.0505s
 ## Final Test Accuracy
 
 Final Acc/Ref | ACC32 | ACC16 | AM32 | AM16 | FP16
