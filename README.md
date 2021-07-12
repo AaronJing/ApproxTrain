@@ -19,6 +19,8 @@
 pip3 install --upgrade pip
 ### keras
 pip3 --user install keras==2.2.0
+### cuDNN v7.1.4. cuda9.0
+https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v7.1.4/prod/9.0_20180516/cudnn-9.0-linux-x64-v7.1
 
 
 ## Final Test Accuracy
