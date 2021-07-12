@@ -1,12 +1,17 @@
 # AMDNN
-## Prerequirement
-- [x] Identical output with tensorflow official implementation will ensure the correctness of our implementation.
-## TODO LIST
-- [x] Set up rollback. (Even program crashed, we could start from last checkpoint)
-- [x] Set up walltime limit 48 hours. Every two days, the partial results will be transferred to storage.
-- [ ] Mask floating point for Bfloat16 after multiplication.
-- [x] T_SIZE should be 0 or 16 bits.
-
+## Project Structure
+* **_convam_grad.py** register gradient operations for CPU version of convam
+* **_convam_grad_gpu.py** register gradient operations for GPU version of convam
+* **convam.cc** size calculation, memory allocation, preprocessing(flatten neurons) and call kernel
+* **cuda_kernel.cu** all gpu kernels and AM emulators here
+	* *gemm(...)* shared memory version. It is used in forward propagation
+	* *im2col_improved(...)* Used in forward propagation
+	* *filtergradkernel(...)* Used in backpropagation: filtergradient
+	* *im2col(...)* Used in backpropagation: Error
+	* *inserthole* Used in backpropagation: Error
+	* *gemm_inverse(...)* Used in backpropagation Error
+* **gpu_compile.sh** GPU compliation (it also compiles CPU)
+* **finally.pbs** gadi script example
 
 
 
