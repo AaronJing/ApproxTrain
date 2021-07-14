@@ -22,6 +22,9 @@ pip3 --user install keras==2.2.0
 ### cuDNN v7.1.4. cuda9.0
 https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v7.1.4/prod/9.0_20180516/cudnn-9.0-linux-x64-v7.1
 
+## Profile command
+python3 main.py --phase train --dataset cifar10 --epoch 200 --batch_size 128 --res_n 18 --acc TEST > output
+
 ## Profile (no AM)
 stage | operation | Time 
 ------------ | ------------ | ------------- 
@@ -41,6 +44,27 @@ BackwardError | Im2Col | 0.0147s
 BackwardError | gemm_inv | 8.79238s
 BackwardFilter | filtergrad | 12.578s
 Total | - | 29.0505s
+
+## Profile (no AM -O2 flag)
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.0201
+Forward | GEMM | 0.044 s
+BackwardError | Im2Col | 0.01s
+BackwardError | gemm_inv | 0.925s
+BackwardFilter | filtergrad | 1.5s
+Total | - | 2.5s
+
+## Profile (with AM -O2 flag)
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.018 s
+Forward | GEMM | 3.695 s
+BackwardError | Im2Col | 0.01s
+BackwardError | gemm_inv | 4.844s
+BackwardFilter | filtergrad | 7.48s
+Total | - | 16.0497s
+
 ## Final Test Accuracy
 
 Final Acc/Ref | ACC32 | ACC16 | AM32 | AM16 | FP16
