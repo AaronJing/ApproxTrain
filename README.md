@@ -65,6 +65,8 @@ BackwardError | gemm_inv | 4.844s
 BackwardFilter | filtergrad | 7.48s
 Total | - | 16.0497s
 
+## Profile (TF)
+Total 1.27 s
 ## Final Test Accuracy
 
 Final Acc/Ref | ACC32 | ACC16 | AM32 | AM16 | FP16
