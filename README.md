@@ -14,9 +14,12 @@
 * **finally.pbs** gadi script example
 
 ## Installation
+### update pip
+pip3 install --upgrade pip
 
 ### Tensorflow gpu 1.12
-pip3 install --upgrade pip
+pip3 install --user tensorflow-gpu==1.12
+
 ### keras
 pip3 --user install keras==2.2.0
 ### cuDNN v7.1.4. cuda9.0
