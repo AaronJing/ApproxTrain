@@ -6,13 +6,20 @@
 #ifdef FMBM32_MULTIPLIER
    #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));
    #include "FPmultMBM_fast32.inc"
+#elif FMBM16_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
+    #include "FPmultMBM_fast16.inc"
+#elif FMBM14_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast14((a),(b));
+    #include "FPmultMBM_fast14.inc"
+#elif FMBM12_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast12((a),(b));
+    #include "FPmultMBM_fast12.inc"
+#elif FMBM10_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast10((a),(b));
+    #include "FPmultMBM_fast10.inc"
 #else
-   #ifdef FMBM16_MULTIPLIER
-      #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
-      #include "FPmultMBM_fast16.inc"
-   #else
-      #define MULTIPLY(a,b) ((a)*(b));
-   #endif
+    #define MULTIPLY(a,b) ((a)*(b));
 #endif
 
 #define TILE_DIM 16

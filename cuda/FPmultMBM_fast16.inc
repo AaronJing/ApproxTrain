@@ -33,7 +33,6 @@ __device__ uint32_t fn_mul_mbmmant16(uint32_t Amnt, uint32_t Bmnt)
 	}
 	// Append hidden bit
 
-    uint32_t flag = (Smnt_corr >= 8388608);
 	Smnt_corr_whbit = ((8388608 + Smnt_corr) << carry);  //  2^23 = 8388608: equivalent to adding  2^23 or 2^24???
 
 	return Smnt_corr_whbit;	// unnormalized
@@ -68,7 +67,6 @@ __device__ float FPmultMBM_fast16(float Af, float Bf)
 	//Extracting sign, exponent, mantissa
 	uint32_t  Oaccsgn = (Otacc & SIGN_MASK);            // 2^31 :  {1, 31{0}}
 	uint32_t  Oaccexp = (Otacc & EXPONENT_MASK) >> 23;
-	uint32_t  Oaccmnt = (Otacc & MANTISSA_MASK);
 
 	//--------------------------------------------------------------------------
 	float Oft;
