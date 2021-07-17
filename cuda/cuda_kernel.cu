@@ -7,7 +7,7 @@
 #include <iostream>
 #include <chrono>
 #include <sys/time.h>
-#include "error.cu"
+#include "error.cuh"
 
 using namespace std;
 #define THREADS_PER_BLOCK 1024
