@@ -3,6 +3,7 @@ from ops import *
 from utils import *
 import tensorflow as tf
 import numpy as np
+import sys
 class ResNet(object):
     def __init__(self, sess, args):
         self.model_name = 'ResNet'
@@ -230,12 +231,12 @@ class ResNet(object):
                 # update network
                 summary_str =  train_loss =  train_accuracy = None
                 # if get_ag is False:
-                # start_time = time.time()
+                start_time = time.time()
                 _, summary_str, train_loss, train_accuracy = self.sess.run(
                     [self.optim, self.train_summary, self.train_loss, self.train_accuracy], feed_dict=train_feed_dict)
                 self.writer.add_summary(summary_str, counter)
-                # end_time = time.time()
-                # print(end_time-start_time)
+                end_time = time.time()
+                print("Global time: "+ str(end_time-start_time), file=sys.stderr)
                 exit(0)
                 # else:
                     # _, summary_str, train_loss, train_accuracy = self.sess.run(

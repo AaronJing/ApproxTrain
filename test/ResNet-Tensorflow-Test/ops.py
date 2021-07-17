@@ -3,7 +3,7 @@ import tensorflow.contrib as tf_contrib
 
 import _convam_grad
 #import _dense_grad
-
+AM = True
 convam_module = tf.load_op_library('./convam_gpu.so')
 #dense_module = tf.load_op_library('cuda_op_kernel.so')
 
@@ -34,11 +34,17 @@ def conv(x, channels, ag,kernel=4, stride=2, padding='SAME', use_bias=True, scop
         # x = tf.nn.conv2d(input = x,filter=conv_w,strides=[1, stride, stride, 1],padding=padding)+conv_b
 
 
+        if(AM):
+            conv_w = tf.get_variable("conv",shape=[kernel,kernel,x.get_shape().as_list()[3],channels],initializer=tf_contrib.layers.variance_scaling_initializer(),regularizer=weight_regularizer)
+            conv_b = tf.Variable(tf.zeros(channels))
+            x = convam_module.convam(input = x, filter = conv_w, strides=[1, stride, stride, 1], padding=padding) + conv_b
+        else:
+            conv_b = tf.Variable(tf.zeros(channels))
+            conv_w = tf.get_variable("conv",shape=[kernel,kernel,x.get_shape().as_list()[3],channels],initializer=tf_contrib.layers.variance_scaling_initializer(),regularizer=weight_regularizer)
 
-        # Using MBM
-        conv_w = tf.get_variable("conv",shape=[kernel,kernel,x.get_shape().as_list()[3],channels],initializer=tf_contrib.layers.variance_scaling_initializer(),regularizer=weight_regularizer)
-        conv_b = tf.Variable(tf.zeros(channels))
-        x = convam_module.convam(input = x, filter = conv_w, strides=[1, stride, stride, 1], padding=padding) + conv_b
+            
+            x = tf.nn.conv2d(input = x,filter=conv_w,strides=[1, stride, stride, 1],padding=padding)+conv_b
+        
 
         return x
 
