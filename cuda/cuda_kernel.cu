@@ -7,6 +7,8 @@
 #include <iostream>
 #include <chrono>
 #include <sys/time.h>
+#include "error.cu"
+
 using namespace std;
 #define THREADS_PER_BLOCK 1024
 #define BLOCK_SIZE 1024
@@ -163,7 +165,7 @@ __device__ float FPMult_SinglePrecision_Rnone_Mitchell(float A, float B, unsigne
 	//======================================================================================================================
 	// FP Emulation STARTS HERE
 	//======================================================================================================================
-	
+
 
 	// Separate the Sign bit, exponent and mantissa
 	bool Asgn = (SGN_MASK & ai) != 0;
@@ -239,7 +241,7 @@ __device__ float FPMult_SinglePrecision_Rnone_Mitchell(float A, float B, unsigne
 		Oexp2 = Oexp1;
 	}
 
-	
+
 	flag_inf2 = (Oexp2 == MAXEXP);
 
 	//------------------------------
@@ -325,15 +327,7 @@ static inline double realtime(void) {
     gettimeofday(&tp, &tzp);
     return tp.tv_sec + tp.tv_usec * 1e-6;
 }
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=false)
-{
-   if (code != cudaSuccess) 
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    //   if (abort) exit(code);
-   }
-}
+
 __device__ float halfmul(const float a, const float b){
 
 
@@ -346,7 +340,7 @@ __device__ float halfmul(const float a, const float b){
       C = __float2half(__half2float(A)*__half2float(B));
   #endif
       float c = __half2float(C);
-      
+
     return c;
 }
 __device__ float bitmasking(float num){
@@ -423,7 +417,7 @@ __device__ unsigned long long  int fn_MitchellMul_Optimized_Unbiased_LowerBitsRe
 
 	//-----------------------------------------------------------------
 	if ((charR <= 6) && (charR - (charA + charB) == 1) && Sz >= 8)
-		// cornercase: peak error 
+		// cornercase: peak error
 		Result = Result + 1;
 	//-----------------------------------------------------------------
 
@@ -495,9 +489,9 @@ __device__ float FPmultMBM_cppv2(float Af, float Bf, int t)
     //=============================================================================
     unsigned long int ai = *(unsigned int*)&Af;
 	unsigned long int bi = *(unsigned int*)&Bf;
-	
+
 	//unsigned long int bitmask =  ~((1 << t) - 1);   //==> 2^t-1;
-	
+
 	unsigned long int at = ai; // &bitmask; let the integer multiplier handle the truncation. In old work, I was truncating both input and output. but not now. So this is not needed
 	unsigned long int bt = bi; // &bitmask;
 
@@ -684,7 +678,7 @@ __device__ float FPmultMBM_cppv2(float Af, float Bf, int t)
     //unsigned long int Oi = MitchelFPMultiply(at, bt);
 
     /////*******************************************************************************************************************************************
-	
+
 
 	//==============================================************ ENDS HERE ********=================================================
 
@@ -693,7 +687,7 @@ __device__ float FPmultMBM_cppv2(float Af, float Bf, int t)
 	unsigned long int Ot = Oi; //& bitmask;
 	float Oft = *(float*)&Ot;
     //=============================================================================
-    
+
 	return Oft;
 
 }
@@ -734,10 +728,10 @@ out[tId] = float(0);
 //=============================================================================
 //=============================================================================
 void im2colLauncher_Improved(
-    const float* im, 
+    const float* im,
     const int batch,
     const int in_row,
-    const int in_col, 
+    const int in_col,
     const int out_row,
     const int out_col,
     const int out_depth,
@@ -754,7 +748,7 @@ void im2colLauncher_Improved(
     float* data_col)
 {
 
-    unsigned pl = filter_row * filter_col * in_depth; 
+    unsigned pl = filter_row * filter_col * in_depth;
     unsigned blockSize = 256;
     unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
     im2col_improved<<<gridSize,blockSize,0>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
@@ -872,7 +866,7 @@ void gemm_reference( size_t m, size_t n,
           const float b_value = b[b_index];
 
           total += (a_value * b_value);
-          
+
         }
         const size_t c_index = ((i * c_i_stride) + j );
         c[c_index] = total;
@@ -912,7 +906,7 @@ __global__ void im2col(
         im += batch_idx * im_stride;
         // select current vectorized batch (f_h * f_w * channel) * (output_row * output_col)
         data_vec += batch_idx * vec_stride;
-        
+
         const int h_index = index / in_channel;
         // 1
         const int c_im = index % in_channel;
@@ -943,7 +937,7 @@ __global__ void im2col(
                 *vec_ptr = (h_im >= 0 && w_im >= 0 && h_im < in_row && w_im < in_col )? im_ptr[(i*in_col+j)*in_channel]:0;
 
                 vec_ptr += in_channel;
-                
+
             }
         }
 
@@ -955,10 +949,10 @@ __global__ void im2col(
 
 
 void im2colLauncher(
-    const float* im, 
+    const float* im,
     const int batch,
     const int in_row,
-    const int in_col, 
+    const int in_col,
     const int out_row,
     const int out_col,
     const int out_depth,
@@ -977,7 +971,7 @@ void im2colLauncher(
     int size = in_depth * height_col * witdh_col;
     // number of elements in one batch of input
     int im_stride = in_depth * in_row * in_col;
-    // number of element in one batch of vectorized output   
+    // number of element in one batch of vectorized output
     int vec_stride = in_depth * filter_row * filter_col * out_row * out_col;
    // printf("size %d, im_stride %d, vec_stride %d, %d leftoffset, %d topoffset\n",size, im_stride, vec_stride,left_offset,top_offset);
     dim3 dim_grid(ceil((float)size/BLOCK_SIZE),batch);
@@ -1079,7 +1073,7 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
     cout << "Forward gemm time difference = " << end - begin << endl;
 #endif
     // const int64 kMaxChunkSize = (16 * 1024 * 1024) / sizeof(float);
-    // int64 patchLength  = filter_col*filter_row*in_depth; 
+    // int64 patchLength  = filter_col*filter_row*in_depth;
     // int64 totalPatchesCount = batch * out_row * out_col;
     // const int64 patchesPerChunk = kMaxChunkSize / patchLength;
     // for(int64 i = 0; i < totalPatchesCount; i += patchesPerChunk)
@@ -1087,9 +1081,9 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
     //     int64 temp_batch = i/(out_row*out_col);
     //     int patchOffset = int(i % (out_row * out_col));
     //     int patchesCount = int(min(patchesPerChunk, totalPatchesCount - i));
-    //     const float *patchInputData = 
+    //     const float *patchInputData =
     // }
-    
+
 
   }
 
@@ -1151,7 +1145,7 @@ __global__ void gemm_filter(size_t m, size_t n,
                         const bool x = fmod(i_col,(float)1)==float(0);
 
                         const size_t b_index = (j  + ( ((int)i_row)*filter_col*in_depth + ((int)i_col)*in_depth+ p  * b_l_stride));
-                        
+
                         const float b_value = x&y?filter[b_index]:0;
 
                         total += (a_value * b_value);
@@ -1203,7 +1197,7 @@ __global__ void filtergradkernel(
         for(int i = 0; i < BATCH; ++i){
             for(int j = 0; j < HOLE_GRAD_HEIGHT; ++j){
                 for(int k = 0; k < HOLE_GRAD_WIDTH; ++k){
-                    
+
                     const float i_row = j/(float)STRIDE_ROW;
                     const float i_col = k/(float)STRIDE_COL;
                     const bool y = fmod(i_row,(float)1)==float(0);
@@ -1315,7 +1309,7 @@ double begin = realtime();
 
 //     gpuErrchk( cudaPeekAtLastError() );
 //     gpuErrchk( cudaDeviceSynchronize() );
-    
+
 };
 
 __global__ void inserthole(
@@ -1453,7 +1447,7 @@ double begin1 = realtime();
         dim3 dim_grid(ceil((float)holed_size/BLOCK_SIZE),input_batch);
         inserthole<<<dim_grid,BLOCK_SIZE>>>( grad, real_grad_height, real_grad_width, output_channel, hole_grad_height, hole_grad_width, holed_size,
             stride_rows, stride_cols, real_size, holed_grad);
-            
+
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
 
@@ -1463,10 +1457,10 @@ double begin1 = realtime();
         // }
 
     // void im2colLauncher(
-    //     const float* im, 
+    //     const float* im,
     //     const int batch,
     //     const int in_row,
-    //     const int in_col, 
+    //     const int in_col,
     //     const int out_row,
     //     const int out_col,
     //     const int out_depth,
@@ -1496,7 +1490,7 @@ double begin1 = realtime();
 //    for (int i = 0; i < output_channel * filter_height * filter_width * input_height * input_width*input_batch; ++i){
 //        printf("%f\n",col[i]);
 //        if((i+1)%8==0&&i!=0){
-           
+
 //            printf("\n");
 //        }
 //    }
@@ -1552,7 +1546,7 @@ double begin = realtime();
     //           fs << i <<", " << j << ", " <<k<<", " << l << ",  " << out[(i* input_height * input_width *input_channel) +
     //                     (j * input_width *input_channel) +
     //                     (k *input_channel) + l]<<"\n";
-              
+
     //       }
     //     }
     //   }
@@ -1561,60 +1555,3 @@ double begin = realtime();
     // fs << "From GPU\n";
     // fs.close();
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
