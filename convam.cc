@@ -1487,6 +1487,7 @@ void ConvamInputGradKernelLauncher(
       const int back_pad_right,
       // reverse
       const float* filter,
+      float* rsfilter,
       const int filter_height,
       const int filter_width,
       const int output_channel,
@@ -1625,12 +1626,18 @@ class ConvamInputGradOpGPU : public OpKernel {
     OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
     TensorShape({output_channel*filter_width*filter_height*input_height*input_width*grad_batch})
     , &im2col));
+    Tensor rsfilter;
+    OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
+    TensorShape({output_channel*filter_width*filter_height*input_channel})
+    , &rsfilter));
     auto grad = out_backprop.flat<float>().data();
     auto in_data = filter.flat<float>().data();
     auto out = in_backprop->template flat<float>().data();
     auto holed_grad_data = holed_grad.flat<float>().data();
     auto im2_col_data = im2col.flat<float>().data();
+    auto rsfilter_data = rsfilter.flat<float>().data();
     double end = realtime();
+
     #ifdef PROFILE
      cout << "backprop input grad preparation Time difference = " << end - begin << endl;
      #endif
@@ -1638,7 +1645,7 @@ class ConvamInputGradOpGPU : public OpKernel {
         // grad needs pading and holes
         // im2col input
         grad,
-         holed_grad_data,
+        holed_grad_data,
         im2_col_data,
         grad_height,
 
@@ -1651,6 +1658,7 @@ class ConvamInputGradOpGPU : public OpKernel {
         back_pad_right,
         // reverse
         in_data,
+        rsfilter_data,
         filter_height,
         filter_width,
         output_channel,

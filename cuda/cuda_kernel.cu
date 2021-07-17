@@ -9,7 +9,7 @@
 #include <sys/time.h>
 #include "error.cuh"
 #include "gemm.cuh"
-
+#include "reverseNswapdim23.cuh"
 using namespace std;
 #define THREADS_PER_BLOCK 1024
 #define BLOCK_SIZE 1024
@@ -1071,7 +1071,7 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
 
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
-     end = realtime();
+    end = realtime();
 #ifdef PROFILE
     cout << "Forward gemm time difference = " << end - begin << endl;
 #endif
@@ -1414,8 +1414,9 @@ void ConvamInputGradKernelLauncher(
     const int back_pad_left,
     const int back_pad_bottom,
     const int back_pad_right,
-    // reverse
     const float* filter,
+    //reverse and swap dimension 2 and 3 of the filters.s
+    float* rsfilter,
     const int filter_height,
     const int filter_width,
     const int output_channel,
@@ -1443,7 +1444,7 @@ void ConvamInputGradKernelLauncher(
     //     const int size,
     //     float* out
     // )
-double begin1 = realtime();
+    double begin1 = realtime();
     if(hole_grad_height!=real_grad_height||hole_grad_width!=real_grad_width){
         // float holed[input_batch*hole_grad_width*hole_grad_height*output_channel];
 
@@ -1513,6 +1514,8 @@ double begin1 = realtime();
 #ifdef PROFILE
     cout << "Error backpropagation: Im2Col time difference = " << end1 - begin1 << endl;
 #endif
+
+
     const size_t m = input_height*input_width; //4
     const size_t n = input_channel; //  1
     const size_t k = filter_width * filter_height * output_channel; //4
@@ -1520,13 +1523,26 @@ double begin1 = realtime();
     const size_t ldb = input_channel;
     const size_t ldc = input_channel;
     const int size = m*n;
-    dim3 dim_grid1(ceil((float)size/BLOCK_SIZE),input_batch);
-    double begin = realtime();
-    gemm_inverse<<<dim_grid1,BLOCK_SIZE>>>(m,n,k,im2col,lda,filter,ldb,output,ldc,size,filter_width,filter_height,output_channel,input_channel);
-    
+    double begin =realtime();
+    dim3 block_size(32,32);
+    dim3 grid_size(ceil(filter_width * filter_height/(float)32.0), ceil(output_channel/(float)32.0));
+    reverseNswapdim23<<<grid_size,block_size>>>(filter_height, filter_width, input_channel, output_channel, rsfilter, filter);
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    dim3 blockSize(16, 16, 1);
+    dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
+
+    gemm<<<gridSize,blockSize,0>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
     double end = realtime();
+    // dim3 dim_grid1(ceil((float)size/BLOCK_SIZE),input_batch);
+    // double begin = realtime();
+    // gemm_inverse<<<dim_grid1,BLOCK_SIZE>>>(m,n,k,im2col,lda,filter,ldb,output,ldc,size,filter_width,filter_height,output_channel,input_channel);
+    // gpuErrchk( cudaPeekAtLastError() );
+    // gpuErrchk( cudaDeviceSynchronize() );
+    // double end = realtime();
 
 #ifdef PROFILE
     cout << "Error backpropagation: Gemm inverse time = " << end - begin << endl;
