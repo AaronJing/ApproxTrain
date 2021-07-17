@@ -24,7 +24,7 @@ echo ""
 echo "FMBM 32 multiply failed"
 nvcc -O2 -I cuda/ -rdc=true -DFMBM32_MULTIPLIER=1 -c cuda/gemm.cu -o test/gemm.o
 nvcc -O2 -I cuda/ -DFMBM32_MULTIPLIER=1 test/test_gemm.cu test/gemm.o  test/FPmultMBM_fast32.o -o test/gemm_am32.out
-test/test/gemm_am32.out > test/data/gemm_am32.txt && diff -q --strip-trailing-cr test/data/am_ref_32bit.txt.exp test/data/gemm_am32.txt|| die "FMBM 32 multiply failed"
+test/gemm_am32.out > test/data/gemm_am32.txt && diff -q --strip-trailing-cr test/data/am_ref_32bit.txt.exp test/data/gemm_am32.txt|| die "FMBM 32 multiply failed"
 
 echo ""
 echo "FMBM 16 multiply failed"
