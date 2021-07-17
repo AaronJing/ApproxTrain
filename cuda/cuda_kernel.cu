@@ -18,7 +18,7 @@ using namespace std;
 // #define SGN_MASK    0x80000000
 // #define MAX_EXP     0xff
 // #define BIAS        0x7f
-#define PROFILE 1
+
 
 #define T_SIZE 16
 ///************
@@ -1017,7 +1017,7 @@ void ConvamKernellLauncher(
 //     printf("batch %d, in_row %d, in_col %d, out_row %d, out_col %d, out_depth %d, in_depth %d, filter_row %d, filter_col %d, stride_row %d, stride_col %d, left_off %d, top_off %d\n",
 //     batch, in_row, in_col, out_row, out_col, out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset, top_offset
 // );
-
+    
     if (filter_row == 1 && filter_col == 1 && stride_row == 1 &&
         stride_col == 1) {
       // The kernel is 1x1.
@@ -1028,7 +1028,7 @@ void ConvamKernellLauncher(
       const int ldb = n;
       const int ldc = n;
       const int size = m*n;
-      dim3 blockSize(8, 8, 1);
+      dim3 blockSize(16, 16, 1);
       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
       gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
       gpuErrchk( cudaPeekAtLastError() );
@@ -1044,7 +1044,7 @@ gpuErrchk( cudaDeviceSynchronize() );
       const int ldb = out_depth;
       const int ldc = out_depth;
       const int size = m*n;
-      dim3 blockSize(8, 8, 1);
+      dim3 blockSize(16, 16, 1);
       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
       gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
       gpuErrchk( cudaPeekAtLastError() );
@@ -1055,7 +1055,7 @@ gpuErrchk( cudaDeviceSynchronize() );
    im2colLauncher_Improved(inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 ,im2col);
    cudaDeviceSynchronize();
    double end = realtime();
-#if PROFILE == 1
+#ifdef PROFILE
 cout << "Forward Im2col time difference = " << end - begin << endl;
 #endif
    const size_t m = batch*out_row*out_col; //4
@@ -1064,7 +1064,7 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
    const size_t lda = k; //4
    const size_t ldb = out_depth;
    const size_t ldc = out_depth;
-   dim3 blockSize(8, 8, 1);
+   dim3 blockSize(16, 16, 1);
    dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
     begin =realtime();
    gemm<<<gridSize,blockSize,0>>>(m,n,k,im2col,lda,filter,ldb,output,ldc);
@@ -1072,7 +1072,7 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
      end = realtime();
-#if PROFILE == 1
+#ifdef PROFILE
     cout << "Forward gemm time difference = " << end - begin << endl;
 #endif
     // const int64 kMaxChunkSize = (16 * 1024 * 1024) / sizeof(float);
@@ -1251,12 +1251,14 @@ double begin = realtime();
     grad_height, grad_width, stride_row, stride_col, input_height, input_width, filter_left_offset, filter_top_offset, input, grad, out
 
     );
-    double end = realtime();
-#if PROFILE == 1
-    cout << "Filter gradient kernel difference = " << end - begin << endl;
-#endif
+    
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
+    double end = realtime();
+#ifdef PROFILE
+    cout << "Filter gradient kernel difference = " << end - begin << endl;
+#endif
+
 
 //     if (grad_height == 1 && grad_width == 1) {
 //       // The kernel is 1x1.
@@ -1508,7 +1510,7 @@ double begin1 = realtime();
    }
     double end1 = realtime();
 
-#if PROFILE == 1
+#ifdef PROFILE
     cout << "Error backpropagation: Im2Col time difference = " << end1 - begin1 << endl;
 #endif
     const size_t m = input_height*input_width; //4
@@ -1519,16 +1521,16 @@ double begin1 = realtime();
     const size_t ldc = input_channel;
     const int size = m*n;
     dim3 dim_grid1(ceil((float)size/BLOCK_SIZE),input_batch);
-double begin = realtime();
+    double begin = realtime();
     gemm_inverse<<<dim_grid1,BLOCK_SIZE>>>(m,n,k,im2col,lda,filter,ldb,output,ldc,size,filter_width,filter_height,output_channel,input_channel);
-    double end = realtime();
-#if PROFILE == 1
-    cout << "Error backpropagation: Gemm inverse time = " << end - begin << endl;
-#endif
-
+    
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
+    double end = realtime();
 
+#ifdef PROFILE
+    cout << "Error backpropagation: Gemm inverse time = " << end - begin << endl;
+#endif
     // cudaError_t cudaerr = cudaDeviceSynchronize();
     // if (cudaerr != cudaSuccess)
     // {

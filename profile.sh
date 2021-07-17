@@ -1,3 +1,4 @@
+export PROFILE="-DPROFILE=1"
 ./gpu_compile.sh
 cp convam_gpu.so test/ResNet-Tensorflow-Test/.
 cd test/ResNet-Tensorflow-Test

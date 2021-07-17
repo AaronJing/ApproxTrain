@@ -19,7 +19,7 @@
 #include <sys/time.h>
 using namespace std;
 using namespace tensorflow;
-#define PROFILE 0
+
 static inline double realtime(void) {
     struct timeval tp;
     struct timezone tzp;
@@ -697,7 +697,7 @@ public:
     // printf("leftoffset %d, topoffset %d\n",filter_left_offset,filter_top_offset);
     //printf("filter_Data%f\n",f_input_data[0]);
   double end = realtime();
-  #if PROFILE == 1
+  #ifdef PROFILE
   cout << "Forward preparation Time difference = " << end - begin  << endl;
   #endif
     ConvamKernellLauncher(
@@ -1198,7 +1198,7 @@ public:
     auto in_data = input.flat<float>().data();
     auto out = filter_backprop->template flat<float>().data();
     double end = realtime();
-  #if PROFILE == 1
+  #ifdef PROFILE
    cout << "Backprop filter grad Time difference = " << end - begin << endl;
    #endif
     ConvamFilterGradKernelLauncher(
@@ -1631,7 +1631,7 @@ class ConvamInputGradOpGPU : public OpKernel {
     auto holed_grad_data = holed_grad.flat<float>().data();
     auto im2_col_data = im2col.flat<float>().data();
     double end = realtime();
-    #if PROFILE == 1
+    #ifdef PROFILE
      cout << "backprop input grad preparation Time difference = " << end - begin << endl;
      #endif
     ConvamInputGradKernelLauncher(
