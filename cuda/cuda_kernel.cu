@@ -702,26 +702,26 @@ __global__ void im2col_improved(const float *in,
 {
 //unsigned pc = ow * oh;
 unsigned pl = kw * kh * c;
-
 for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += blockDim.x * gridDim.x)
 {
-unsigned patchId = (tId + po*pl) / pl;
-unsigned outB    = (patchId / ow) / oh;
-unsigned outH    = (patchId / ow) % oh;
-unsigned outW    = patchId % ow;
+    unsigned patchId = (tId + po*pl) / pl;
+    unsigned outB    = (patchId / ow) / oh;
+    unsigned outH    = (patchId / ow) % oh;
+    unsigned outW    = patchId % ow;
 
-unsigned valueId = (tId + po*pl) % pl;
-unsigned offsetH = valueId / (kw * c);
-unsigned offsetW = (valueId / c) % kw;
-unsigned offsetC = valueId % c;
+    unsigned valueId = (tId + po*pl) % pl;
+    unsigned offsetH = valueId / (kw * c);
+    unsigned offsetW = (valueId / c) % kw;
+    unsigned offsetC = valueId % c;
 
-unsigned inH = outH * sh - ph + offsetH * dh;
-unsigned inW = outW * sw - pw + offsetW * dw;
+    unsigned inH = outH * sh - ph + offsetH * dh;
+    unsigned inW = outW * sw - pw + offsetW * dw;
 
-if(inH >= 0 && inW >= 0 && inH < h && inW < w)
-out[tId] = in[((outB * h + inH) * w + inW) * c + offsetC];
-else
-out[tId] = float(0);
+    if(inH >= 0 && inW >= 0 && inH < h && inW < w)
+        out[tId] = in[((outB * h + inH) * w + inW) * c + offsetC];
+    else
+        out[tId] = float(0);
+
 }
 
 }
@@ -1371,9 +1371,12 @@ void ConvamInputGradKernelLauncher(
     //     const int top_offset,
     //     float* data_col)
 
-   im2colLauncher(
-       holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,0,output_channel,filter_height,
-       filter_width,1,1,back_pad_left,back_pad_top,im2col);
+//    im2colLauncher(
+//        holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,0,output_channel,filter_height,
+//        filter_width,1,1,back_pad_left,back_pad_top,im2col);
+       im2colLauncher_Improved(
+        holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
+        filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
     //    end = realtime();
     //    cout << "backprop input grad im2col Time difference = " << end - begin << endl;
 //   cudaMemcpy(col,im2col, sizeof(float)*output_channel * filter_height * filter_width * input_height * input_width*input_batch, cudaMemcpyDeviceToHost);
@@ -1386,13 +1389,18 @@ void ConvamInputGradKernelLauncher(
 //    }
    } else {
     // double begin = realtime();
+    // float temp[input_height * input_width * filter_width * filter_height * output_channel];
+
     im2colLauncher_Improved(
         grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
         filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
         // double end = realtime();
         // cout << "backprop input grad im2col Time difference = " << end - begin << endl;
-
-   }
+//     cudaMemcpy(col,im2col, sizeof(float)*input_height * input_width * filter_width * filter_height * output_channel, cudaMemcpyDeviceToHost);
+//     for (int i = 0; i < input_height * input_width * filter_width * filter_height * output_channel; ++i){
+//        printf("%f\n",col[i]);
+//    }
+}
     double end1 = realtime();
 
 #ifdef PROFILE
@@ -1400,7 +1408,7 @@ void ConvamInputGradKernelLauncher(
 #endif
 
 
-    const size_t m = input_height*input_width; //4
+    const size_t m = input_batch*input_height*input_width; //4
     const size_t n = input_channel; //  1
     const size_t k = filter_width * filter_height * output_channel; //4
     const size_t lda = k; //4

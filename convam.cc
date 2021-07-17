@@ -1617,6 +1617,7 @@ class ConvamInputGradOpGPU : public OpKernel {
     const int back_pad_left = filter_width - 1 - (int)forw_pad_left;
     const int back_pad_bottom = input_height - (grad_height-1)*stride_rows-2-back_pad_top+filter_height;
     const int back_pad_right = input_width - (grad_width-1)*stride_cols-2-back_pad_left+filter_width;
+    // std::cout << "back_pad_top " << back_pad_top << "back_pad_left " <<back_pad_left << "back_pad_bottom " << back_pad_bottom<< "back_pad_right " << back_pad_right<< "\n";
     Tensor holed_grad;
     OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
     TensorShape({hole_grad_height*hole_grad_width*output_channel*grad_batch})
