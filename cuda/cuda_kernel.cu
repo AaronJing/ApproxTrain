@@ -758,92 +758,6 @@ void im2colLauncher_Improved(
 
 }
 
-
-//=============================================================================
-//===============================GEMM KERNEL===================================
-//=============================================================================
-/*
-#define TILE_DIM 8
-__global__ void gemm(size_t m, size_t n, size_t k,
-    const float *a, size_t lda, const float *b, size_t ldb,
-    float *c, size_t ldc)
-{
-float value(0);
-
-int Row = blockIdx.y*TILE_DIM + threadIdx.y;
-int Col = blockIdx.x*TILE_DIM + threadIdx.x;
-
-__shared__ float As[TILE_DIM][TILE_DIM];
-__shared__ float Bs[TILE_DIM][TILE_DIM];
-
-for (int i = 0; i < (TILE_DIM + k - 1)/TILE_DIM; ++i) {
-
-if (i*TILE_DIM + threadIdx.x < k && Row < m)
-As[threadIdx.y][threadIdx.x] = a[Row*lda + i*TILE_DIM + threadIdx.x];
-else
-As[threadIdx.y][threadIdx.x] = float(0);
-
-if (i*TILE_DIM + threadIdx.y < k && Col < n)
-Bs[threadIdx.y][threadIdx.x] = b[(i*TILE_DIM + threadIdx.y)*ldb + Col];
-else
-Bs[threadIdx.y][threadIdx.x] = float(0);
-
-__syncthreads();
-
-for (int n = 0; n < TILE_DIM; ++n)
-//value += bitmasking(bitmasking(As[threadIdx.y][n])*bitmasking(Bs[n][threadIdx.x]));
-//value += FPmultMBM_cppv2(As[threadIdx.y][n],Bs[n][threadIdx.x],T_SIZE);
-//value += FPMult_SinglePrecision_Rnone_Mitchell(As[threadIdx.y][n],Bs[n][threadIdx.x],MT);
-value += As[threadIdx.y][n]*Bs[n][threadIdx.x];
-__syncthreads();
-}
-
-if (Row < m && Col < n)
-c[((blockIdx.y * blockDim.y  + threadIdx.y)*ldc) +
-(blockIdx.x * blockDim.x) + threadIdx.x] = value;
-}
-*/
-//=============================================================================
-//=============================================================================
-//=============================================================================
-/*
-__global__ void gemm(size_t m, size_t n,
-    size_t k, const float* vectorized, size_t lda, const float* filter, size_t ldb,
-    float* c, size_t ldc,int size){
-        const size_t a_i_stride = lda; //4
-        // const size_t a_l_stride = 1;
-        // const size_t b_j_stride = 1;
-        const size_t b_l_stride = ldb;//1
-        const size_t c_i_stride = ldc; //1
-        // const size_t c_j_stride = 1;
-        int index = blockIdx.x * blockDim.x + threadIdx.x;
-        if (index < size){
-            const int batch_idx = blockIdx.y;
-            vectorized += batch_idx*k*m;
-            c += batch_idx*m*n;
-            int j = index / m;
-            int i = index % m;
-            float total(0);
-            //loop filter_value_count
-            for (int l = 0; l < k; l++) {
-            const size_t a_index = ((i * a_i_stride) + l );
-            const float a_value = vectorized[a_index];
-            // filter
-            const size_t b_index = (j  + (l * b_l_stride));
-
-            const float b_value = filter[b_index];
-            total += FPMult_SinglePrecision_Rnone_Mitchell(a_value,b_value,8);
-            //total += FPmultMBM_cppv2(a_value , b_value,T_SIZE);
-           // total += bitmasking(bitmasking(a_value)*bitmasking(b_value));
-            // total += halfmul(a_value,b_value);
-            }
-            const size_t c_index = ((i * c_i_stride) + j );
-            c[c_index] = total;
-        }
-
-}
-*/
-
 void gemm_reference( size_t m, size_t n,
     size_t k, const float* a, size_t lda, const float* b, size_t ldb,
     float* c, size_t ldc){
@@ -877,9 +791,7 @@ void gemm_reference( size_t m, size_t n,
     }
   }
 
-void gemmLauncher(){
 
-}
 // HWC -> (C*f_h*f_w)*(out_row*out_col)
 __global__ void im2col(
     const int size,
@@ -1429,21 +1341,6 @@ void ConvamInputGradKernelLauncher(
     const int input_channel,
     float* output
 ){
-
-
-    // __global__ void inserthole(
-    //     const float* grad,
-    //     const int grad_height,
-    //     const int grad_width,
-    //     const int grad_channel,
-    //     const int hole_grad_height,
-    //     const int hole_grad_width,
-    //     const int final_size,
-    //     const int stride_row,
-    //     const int stride_col,
-    //     const int size,
-    //     float* out
-    // )
     double begin1 = realtime();
     if(hole_grad_height!=real_grad_height||hole_grad_width!=real_grad_width){
         // float holed[input_batch*hole_grad_width*hole_grad_height*output_channel];
@@ -1456,12 +1353,6 @@ void ConvamInputGradKernelLauncher(
 
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
-
-            // cudaMemcpy(holed,holed_grad, sizeof(float)*hole_grad_width*hole_grad_height*output_channel*input_batch, cudaMemcpyDeviceToHost);
-        // for(int i = 0; i < hole_grad_width*hole_grad_height*output_channel*input_batch; i++){
-        //     printf("%d: %f\n",i,holed[i]);
-        // }
-
     // void im2colLauncher(
     //     const float* im,
     //     const int batch,
@@ -1479,14 +1370,7 @@ void ConvamInputGradKernelLauncher(
     //     const int left_offset,
     //     const int top_offset,
     //     float* data_col)
-    // cudaError_t cudaerr = cudaDeviceSynchronize();
-    // if (cudaerr != cudaSuccess)
-    // {
-    //     printf("input kernel launch failed with error \"%s\".\n", cudaGetErrorString(cudaerr));
-    // }
-    // float col[output_channel * filter_height * filter_width * input_height * input_width*input_batch];
 
-        // begin = realtime();
    im2colLauncher(
        holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,0,output_channel,filter_height,
        filter_width,1,1,back_pad_left,back_pad_top,im2col);
@@ -1502,9 +1386,9 @@ void ConvamInputGradKernelLauncher(
 //    }
    } else {
     // double begin = realtime();
-    im2colLauncher(
-        grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,0,output_channel,filter_height,
-        filter_width,1,1,back_pad_left,back_pad_top,im2col);
+    im2colLauncher_Improved(
+        grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
+        filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
         // double end = realtime();
         // cout << "backprop input grad im2col Time difference = " << end - begin << endl;
 
@@ -1547,32 +1431,5 @@ void ConvamInputGradKernelLauncher(
 #ifdef PROFILE
     cout << "Error backpropagation: Gemm inverse time = " << end - begin << endl;
 #endif
-    // cudaError_t cudaerr = cudaDeviceSynchronize();
-    // if (cudaerr != cudaSuccess)
-    // {
-    //     printf("input kernel launch failed with error \"%s\".\n", cudaGetErrorString(cudaerr));
-    // }
-    // float out[input_batch*input_height*input_width*input_channel];
-    // cudaMemcpy(out,output, sizeof(float)*input_batch*input_height*input_width*input_channel, cudaMemcpyDeviceToHost);
-    // std::fstream fs;
-    // fs.open("gpu_input_log", std::fstream::in | std::fstream::out | std::fstream::app);
-    // // ----------test for forward propagation-----------
-    // for(int i = 0; i < input_batch; i++){
-    //   for(int j = 0; j < input_height; j++){
-    //     for(int k = 0; k < input_width; k++){
-    //       for(int l = 0; l < input_channel; l++){
-    //           // printf("(%d, %d, %d, %d) %f\n",i,j,k,l,output_data[(i * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
-    //           //           (j * dimensions.out_cols * dimensions.out_depth) +
-    //           //           (k * dimensions.out_depth) + l]);
-    //           fs << i <<", " << j << ", " <<k<<", " << l << ",  " << out[(i* input_height * input_width *input_channel) +
-    //                     (j * input_width *input_channel) +
-    //                     (k *input_channel) + l]<<"\n";
 
-    //       }
-    //     }
-    //   }
-    // }
-    // // printf("From GPU Input\n");
-    // fs << "From GPU\n";
-    // fs.close();
 };
