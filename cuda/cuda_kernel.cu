@@ -8,6 +8,7 @@
 #include <chrono>
 #include <sys/time.h>
 #include "error.cuh"
+#include "gemm.cuh"
 
 using namespace std;
 #define THREADS_PER_BLOCK 1024
@@ -761,6 +762,7 @@ void im2colLauncher_Improved(
 //=============================================================================
 //===============================GEMM KERNEL===================================
 //=============================================================================
+/*
 #define TILE_DIM 8
 __global__ void gemm(size_t m, size_t n, size_t k,
     const float *a, size_t lda, const float *b, size_t ldb,
@@ -800,10 +802,11 @@ if (Row < m && Col < n)
 c[((blockIdx.y * blockDim.y  + threadIdx.y)*ldc) +
 (blockIdx.x * blockDim.x) + threadIdx.x] = value;
 }
-
+*/
 //=============================================================================
 //=============================================================================
 //=============================================================================
+/*
 __global__ void gemm(size_t m, size_t n,
     size_t k, const float* vectorized, size_t lda, const float* filter, size_t ldb,
     float* c, size_t ldc,int size){
@@ -839,7 +842,7 @@ __global__ void gemm(size_t m, size_t n,
         }
 
 }
-
+*/
 
 void gemm_reference( size_t m, size_t n,
     size_t k, const float* a, size_t lda, const float* b, size_t ldb,

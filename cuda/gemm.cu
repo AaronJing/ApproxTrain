@@ -2,8 +2,18 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
-#include "gemm.cuh"
 
+#ifdef FMBM32_MULTIPLIER
+   #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));
+   #include "FPmultMBM_fast32.inc"
+#else
+   #ifdef FMBM16_MULTIPLIER
+      #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
+      #include "FPmultMBM_fast16.inc"
+   #else
+      #define MULTIPLY(a,b) ((a)*(b));
+   #endif
+#endif
 
 #define TILE_DIM 16
 __global__ void gemm(size_t m, size_t n, size_t k,
