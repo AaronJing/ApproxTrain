@@ -13,9 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: unit tests
+      run: test/test.sh
     - name: compile
       run: ./gpu_compile.sh
     - name: run
       run: python3 ./convam_final_test.py
-    - name: unit tests
-      run: test/test.sh

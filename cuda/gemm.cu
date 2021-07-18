@@ -5,19 +5,19 @@
 
 #ifdef FMBM32_MULTIPLIER
    #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));
-   #include "FPmultMBM_fast32.inc"
+   #include "FPmultMBM_fast32.inl"
 #elif FMBM16_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
-    #include "FPmultMBM_fast16.inc"
+    #include "FPmultMBM_fast16.inl"
 #elif FMBM14_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast14((a),(b));
-    #include "FPmultMBM_fast14.inc"
+    #include "FPmultMBM_fast14.inl"
 #elif FMBM12_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast12((a),(b));
-    #include "FPmultMBM_fast12.inc"
+    #include "FPmultMBM_fast12.inl"
 #elif FMBM10_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast10((a),(b));
-    #include "FPmultMBM_fast10.inc"
+    #include "FPmultMBM_fast10.inl"
 #else
     #define MULTIPLY(a,b) ((a)*(b));
 #endif
