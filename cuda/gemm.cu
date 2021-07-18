@@ -18,6 +18,21 @@
 #elif FMBM10_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast10((a),(b));
     #include "FPmultMBM_fast10.inl"
+#elif MITCHEL32_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast32((a),(b));
+    #include "Mitchell_32.inl"
+#elif MITCHEL16_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast16((a),(b));
+    #include "Mitchell_16.inl"
+#elif MITCHEL14_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast14((a),(b));
+    #include "Mitchell_14.inl"
+#elif MITCHEL12_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast12((a),(b));
+    #include "Mitchell_12.inl"
+#elif MITCHEL10_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast10((a),(b));
+    #include "Mitchell_10.inl"
 #else
     #define MULTIPLY(a,b) ((a)*(b));
 #endif
