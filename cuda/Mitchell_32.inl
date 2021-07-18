@@ -63,7 +63,6 @@ __device__ float FPmultMitch_fast32(float Af, float Bf)
 	//Extracting sign, exponent, mantissa
 	uint32_t  Oaccsgn = (Otacc & SIGN_MASK);            // 2^31 :  {1, 31{0}}
 	uint32_t  Oaccexp = (Otacc & EXPONENT_MASK) >> 23;
-	uint32_t  Oaccmnt = (Otacc & MANTISSA_MASK);
 
 	//--------------------------------------------------------------------------
 	float Oft;
