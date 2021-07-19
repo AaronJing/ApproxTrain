@@ -68,6 +68,29 @@ BackwardError | gemm_inv | 4.844s
 BackwardFilter | filtergrad | 7.48s
 Total | - | 16.0497s
 
+## Profile (no AM -O2 and all im2col+gemm)
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.020s
+Forward | GEMM | 0.036s
+BackwardError | Im2Col | 0.0534s
+BackwardError | GEMM | 0.0554s
+BackwardFilter | Im2Col | 0.0205s
+BackwardFilter | GEMM | 0.047s
+Total | - | 0.232s
+
+## Profile (AM -O2 and all im2col+gemm)
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.020s
+Forward | GEMM | 0.3s
+BackwardError | Im2Col | 0.052s
+BackwardError | GEMM | 0.335s
+BackwardFilter | Im2Col | 0.018s
+BackwardFilter | GEMM | 0.37s
+Total | - | 1.092s
+
+
 ## Profile (TF)
 Total 1.27 s
 ## Final Test Accuracy

@@ -5,7 +5,7 @@ TF_LFLAGS=( $(python3 -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.g
 
 rm -f *.o *.so
 
-#MULTIPLIER="-DFMBM32_MULTIPLIER=1"
+MULTIPLIER="-DFMBM32_MULTIPLIER=1"
 # MULTIPLIER="-DFMBM16_MULTIPLIER=1"
 #PROFILE="-DPROFILE=1"
 
