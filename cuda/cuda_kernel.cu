@@ -344,15 +344,17 @@ __device__ float halfmul(const float a, const float b){
 
     return c;
 }
+
 __device__ float bitmasking(float num){
-	// int mask = 0xffff0000;
-	// //convert to int
-	// int b = *(int*)&num;
-    // int masked = b&mask;
-    // float ret  = *(float*)&masked;
-	// return ret;
-    return num;
+	int mask = 0xffff0000;
+	//convert to int
+	int b = *(int*)&num;
+    int masked = b&mask;
+    float ret  = *(float*)&masked;
+	return ret;
+    // return num;
 }
+
 __device__ unsigned long long  int fn_MitchellMul_Optimized_Unbiased_LowerBitsReduced_copy(unsigned int A, unsigned int B, unsigned int Sz)
 {
 	const unsigned int MNTSZ = 23;
@@ -761,12 +763,9 @@ void im2colLauncher_Improved(
 void gemm_reference( size_t m, size_t n,
     size_t k, const float* a, size_t lda, const float* b, size_t ldb,
     float* c, size_t ldc){
-    const size_t a_i_stride = lda; // filter_value_coun
-    // const size_t a_l_stride = 1;
-    // const size_t b_j_stride = 1;
-    const size_t b_l_stride = ldb; // filter_count
-    const size_t c_i_stride = ldc; // filter_count
-    // const size_t c_j_stride = 1;
+    const size_t a_i_stride = lda; 
+    const size_t b_l_stride = ldb; 
+    const size_t c_i_stride = ldc; 
     size_t i, j, l;
     // loop output depth
     for (j = 0; j < n; j++) {
@@ -777,13 +776,10 @@ void gemm_reference( size_t m, size_t n,
         for (l = 0; l < k; l++) {
           const size_t a_index = ((i * a_i_stride) + l );
           const float a_value = a[a_index];
-          // filter
+          // filte
           const size_t b_index = (j  + (l * b_l_stride));
-
           const float b_value = b[b_index];
-
           total += (a_value * b_value);
-
         }
         const size_t c_index = ((i * c_i_stride) + j );
         c[c_index] = total;
@@ -1127,7 +1123,8 @@ __global__ void filtergradkernel(
                     }
                    // temp += FPMult_SinglePrecision_Rnone_Mitchell(input_val,grad_val,MT);
                     //temp += FPmultMBM_cppv2(input_val , grad_val,T_SIZE);
-                    //temp += bitmasking(bitmasking(input_val)*bitmasking(grad_val));
+                    //bf16*bf16 -> 1+8+14 = 23bits
+                    // temp += bitmasking(bitmasking(input_val)*bitmasking(grad_val));
                     //temp+= halfmul(input_val,grad_val);
 temp += input_val*grad_val;
                 }
@@ -1172,61 +1169,6 @@ double begin = realtime();
 #endif
 
 
-//     if (grad_height == 1 && grad_width == 1) {
-//       // The kernel is 1x1.
-//       const int m = batch * in_row * in_col;
-//       const int n = out_depth;
-//       const int k = in_depth;
-//       const int lda = k;
-//       const int ldb = n;
-//       const int ldc = n;
-//       const int size = m*n;
-//       dim3 blockSize(8, 8, 1);
-//       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-//       gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
-//       gpuErrchk( cudaPeekAtLastError() );
-// gpuErrchk( cudaDeviceSynchronize() );
-//       return;
-//     } else if (grad_height == in_row && grad_width== in_col &&
-//                padding == 1) {
-//       // The input data and filter have the same height/width.
-//       const int m = batch;
-//       const int n = out_depth;
-//       const int k = in_depth*in_col*in_row;
-//       const int lda = k;
-//       const int ldb = out_depth;
-//       const int ldc = out_depth;
-//       const int size = m*n;
-//       dim3 blockSize(8, 8, 1);
-//       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-//       gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
-//       gpuErrchk( cudaPeekAtLastError() );
-// gpuErrchk( cudaDeviceSynchronize() );
-//       return;
-//     }
-
-//    im2colLauncher_Improved(inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 im2col);
-//    cudaDeviceSynchronize();
-// //    float col[81];
-// //    cudaMemcpy(col,im2col, sizeof(float)*81, cudaMemcpyDeviceToHost);
-// //         for(int i =0; i < 81; i++){
-// //     printf("%f   ",col[i]);
-
-// //     }
-// //     printf("\n");
-//    const size_t m = batch*out_row*out_col; //4
-//    const size_t n = out_depth; //  1
-//    const size_t k = filter_col * filter_row * in_depth; //4
-//    const size_t lda = k; //4
-//    const size_t ldb = out_depth;
-//    const size_t ldc = out_depth;
-//    dim3 blockSize(8, 8, 1);
-//    dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-//    gemm<<<gridSize,blockSize,0>>>(m,n,k,im2col,lda,filter,ldb,output,ldc);
-
-//     gpuErrchk( cudaPeekAtLastError() );
-//     gpuErrchk( cudaDeviceSynchronize() );
-
 };
 
 __global__ void inserthole(
@@ -1260,57 +1202,7 @@ __global__ void inserthole(
         //*out = grad[g_channel+((int)i_x)*grad_channel+((int)i_y)*grad_channel*grad_width];
     }
 }
-__global__ void gemm_inverse(size_t m, size_t n,
-    size_t k, const float* vectorized, size_t lda, const float* filter, size_t ldb,
-    float* c, size_t ldc,const int size,
-    const int filter_col,
-    const int filter_row,
-    const int out_depth,
-    const int in_depth
-){
-        const size_t a_i_stride = lda; //9
-        // const size_t a_l_stride = 1;
-        // const size_t b_j_stride = 1;
-        const size_t b_l_stride = ldb;//1
-        const size_t c_i_stride = ldc; //1
-        // const size_t c_j_stride = 1;
-        int index = blockIdx.x * blockDim.x + threadIdx.x;
-        if (index < size){
-            const int batch_idx = blockIdx.y;
-            vectorized += batch_idx*k*m;
-            c += batch_idx*m*n;
-            //input_depth
-            // 0
-            int j = index / m;
-            //patch
-            // 1
-            int i = index % m;
-            float total(0);
-            //loop filter_value_count
-            // for (int l = 0; l < k; l++) {
-            for(int x = 0; x < filter_col; x++){
-                for(int y = 0; y < filter_row; y++){
-                    //ideally this is the in_depth
-                    for(int z = 0; z < out_depth; z++){
-                    const size_t a_index = ((i * a_i_stride) + y*out_depth*filter_col+ x*out_depth+z);
-                    const float a_value = vectorized[a_index];
-                    // filter
-                    //HWIO
-                    const size_t b_index = ((filter_row-1-y)*out_depth*in_depth*filter_col+ (filter_col-1-x)*out_depth*in_depth+j*out_depth+z);
 
-                    const float b_value = filter[b_index];
-        //            total += FPMult_SinglePrecision_Rnone_Mitchell(a_value,b_value,MT);
-                    //total += FPmultMBM_cppv2(a_value ,b_value, T_SIZE);
-                   // total += bitmasking(bitmasking(a_value)*bitmasking(b_value));
-                    //total += halfmul(a_value,b_value);
-total += a_value*b_value;
-            }}}
-            // }
-            const size_t c_index = ((i * c_i_stride) + j );
-            c[c_index] = total;
-        }
-
-}
 
 void ConvamInputGradKernelLauncher(
     // grad needs pading and holes
@@ -1353,54 +1245,14 @@ void ConvamInputGradKernelLauncher(
 
             gpuErrchk( cudaPeekAtLastError() );
             gpuErrchk( cudaDeviceSynchronize() );
-    // void im2colLauncher(
-    //     const float* im,
-    //     const int batch,
-    //     const int in_row,
-    //     const int in_col,
-    //     const int out_row,
-    //     const int out_col,
-    //     const int out_depth,
-    //     const int in_depth,
-    //     const int filter_row,
-    //     const int filter_col,
-    //     const int stride_row,
-    //     const int stride_col,
-    //     // Padding
-    //     const int left_offset,
-    //     const int top_offset,
-    //     float* data_col)
-
-//    im2colLauncher(
-//        holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,0,output_channel,filter_height,
-//        filter_width,1,1,back_pad_left,back_pad_top,im2col);
        im2colLauncher_Improved(
         holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
         filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
-    //    end = realtime();
-    //    cout << "backprop input grad im2col Time difference = " << end - begin << endl;
-//   cudaMemcpy(col,im2col, sizeof(float)*output_channel * filter_height * filter_width * input_height * input_width*input_batch, cudaMemcpyDeviceToHost);
-//    for (int i = 0; i < output_channel * filter_height * filter_width * input_height * input_width*input_batch; ++i){
-//        printf("%f\n",col[i]);
-//        if((i+1)%8==0&&i!=0){
-
-//            printf("\n");
-//        }
-//    }
    } else {
-    // double begin = realtime();
-    // float temp[input_height * input_width * filter_width * filter_height * output_channel];
-
     im2colLauncher_Improved(
         grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
         filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
-        // double end = realtime();
-        // cout << "backprop input grad im2col Time difference = " << end - begin << endl;
-//     cudaMemcpy(col,im2col, sizeof(float)*input_height * input_width * filter_width * filter_height * output_channel, cudaMemcpyDeviceToHost);
-//     for (int i = 0; i < input_height * input_width * filter_width * filter_height * output_channel; ++i){
-//        printf("%f\n",col[i]);
-//    }
-}
+    }
     double end1 = realtime();
 
 #ifdef PROFILE
