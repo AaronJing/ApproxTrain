@@ -7,8 +7,14 @@ from tensorflow.contrib.layers import flatten
 
 numpy.set_printoptions(threshold=sys.maxsize)
 convam_module = tf.load_op_library('convam_gpu.so')
-# Test different shape
 
+FLOAT = False
+
+def float_comparison(x, y):
+    return np.abs(x-y)/y
+
+def int_comparison(x, y):
+    return x.astype(int)-y.astype(int)
 
 def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
     with tf.device('/gpu:0'):
@@ -52,10 +58,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
         backward_input_conv_same = np.asarray(sess.run(grad_input_same,feed_dict = {x:_x,W:_w}))
         success = True
 
-        abs_err_forward_valid = np.abs(forward_am-forward_conv)/forward_conv
+        abs_err_forward_valid = float_comparison(forward_am,forward_conv) if FLOAT else int_comparison(forward_am,forward_conv)
         abs_err_forward_valid = np.asarray(abs_err_forward_valid)
         max_abs_err_forward_valid = np.max(abs_err_forward_valid)
-        err_forward_valid = np.mean(np.abs(forward_am-forward_conv)/forward_conv) 
+        err_forward_valid = np.mean(float_comparison(forward_am,forward_conv) if FLOAT else int_comparison(forward_am,forward_conv)) 
         if err_forward_valid > 1e-7:
             print("case start err_forward_valid")
 
@@ -70,10 +76,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print()
             success = False
 
-        abs_err_forward_same = np.abs(forward_am_same-forward_conv_same)/forward_conv_same
+        abs_err_forward_same = float_comparison(forward_am_same,forward_conv_same) if FLOAT else int_comparison(forward_am_same,forward_conv_same)
         abs_err_forward_same = np.asarray(abs_err_forward_same)
         max_abs_err_forward_same = np.max(abs_err_forward_same)
-        err_forward_same = np.mean(np.abs(forward_am_same-forward_conv_same)/forward_conv_same)
+        err_forward_same = np.mean(float_comparison(forward_am_same,forward_conv_same) if FLOAT else int_comparison(forward_am_same,forward_conv_same))
         if  err_forward_same > 1e-7:
             print("case start err_forward_same")
             # print(forward_am_same)
@@ -87,11 +93,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print()
             success = False
 
-        abs_err_backward_filter_valid = np.abs(backward_filter_am-backward_filter_conv)/backward_filter_conv
-
+        abs_err_backward_filter_valid = float_comparison(backward_filter_am, backward_filter_conv) if FLOAT else int_comparison(backward_filter_am, backward_filter_conv)
         abs_err_backward_filter_valid = np.asarray(abs_err_backward_filter_valid)
         max_abs_err_backward_filter_valid = np.max(abs_err_backward_filter_valid)
-        err_backward_filter_valid = np.mean(np.abs(backward_filter_am-backward_filter_conv)/backward_filter_conv)
+        err_backward_filter_valid = np.mean(float_comparison(backward_filter_am, backward_filter_conv) if FLOAT else int_comparison(backward_filter_am, backward_filter_conv))
         if err_backward_filter_valid >  1e-7:
             print("case start err_backward_filter_valid")
             # print(backward_filter_am)
@@ -104,11 +109,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
-        abs_err_backward_input_valid = np.abs(backward_input_am-backward_input_conv)/backward_input_conv
-        print(backward_input_conv)
+        abs_err_backward_input_valid = float_comparison(backward_input_am, backward_input_conv) if FLOAT else int_comparison(backward_input_am, backward_input_conv) 
         abs_err_backward_input_valid = np.asarray(abs_err_backward_input_valid)
         max_abs_err_backward_input_valid = np.max( abs_err_backward_input_valid)
-        err_backward_input_valid = np.mean(np.abs(backward_input_am-backward_input_conv)/backward_input_conv)
+        err_backward_input_valid = np.mean(float_comparison(backward_input_am, backward_input_conv) if FLOAT else int_comparison(backward_input_am, backward_input_conv) )
         if err_backward_input_valid > 1e-7:
             print("case start err_backward_input_valid")
             # print(backward_input_am)
@@ -121,10 +125,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
-        abs_err_backward_filter_same = np.abs(backward_filter_am_same-backward_filter_conv_same)/backward_filter_conv_same
+        abs_err_backward_filter_same = float_comparison(backward_filter_am_same,backward_filter_conv_same) if FLOAT else int_comparison(backward_filter_am_same, backward_filter_conv_same)  
         abs_err_backward_filter_same = np.asarray( abs_err_backward_filter_same)
         max_abs_err_backward_filter_same = np.max( abs_err_backward_filter_same)
-        err_backward_filter_same = np.mean(np.abs(backward_filter_am_same-backward_filter_conv_same)/backward_filter_conv_same)
+        err_backward_filter_same = np.mean(float_comparison(backward_filter_am_same,backward_filter_conv_same) if FLOAT else int_comparison(backward_filter_am_same, backward_filter_conv_same)  )
         if err_backward_filter_same >  1e-7:
             print("case start err_backward_filter_same")
             # print(backward_filter_am_same)
@@ -137,10 +141,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
-        abs_err_backward_input_same = np.abs(backward_input_am_same- backward_input_conv_same)/ backward_input_conv_same
+        abs_err_backward_input_same =float_comparison(backward_input_am_same, backward_input_conv_same) if FLOAT else int_comparison(backward_input_am_same, backward_input_conv_same) 
         abs_err_backward_input_same = np.asarray(abs_err_backward_input_same)
         max_abs_err_backward_input_same = np.max(abs_err_backward_input_same)
-        err_backward_input_same = np.mean(np.abs(backward_input_am_same- backward_input_conv_same)/ backward_input_conv_same)
+        err_backward_input_same = np.mean(float_comparison(backward_input_am_same, backward_input_conv_same) if FLOAT else int_comparison(backward_input_am_same, backward_input_conv_same) )
         if err_backward_input_same > 1e-7:
             print("case start err_backward_input_same")
             # print(backward_input_am_same)
@@ -160,44 +164,49 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
 def get_random_np(x):
     return np.random.rand(x[0],x[1],x[2],x[3]),np.random.rand(x[4],x[5],x[6],x[7])
 def get_random_int_np(x):
-    return np.random.randint(100,size=x[0:4]),np.random.randint(100,size=x[4:8])
+    return np.random.randint(-2,2,size=x[0:4]),np.random.randint(-2,2,size=x[4:8])
 shape_dict = {
-    # 0:(1,4,4,1,4,4,1,1),
+    0:(1,4,4,1,4,4,1,1),
     1:(1,4,4,1,3,3,1,1),
-    # 2:(1,4,4,1,2,2,1,1),
-    # 3:(1,4,4,1,1,1,1,1),
-    # 4:(1,4,8,1,4,4,1,1),
-    # 5:(1,4,8,1,3,3,1,1),
-    # 6:(1,4,8,1,2,2,1,1),
-    # 7:(1,4,8,1,1,1,1,1),
-    # 8:(1,4,8,1,4,5,1,1),
-    # 9:(1,4,8,1,3,4,1,1),
-    # 10:(1,4,8,1,2,1,1,1),
-    # 11:(1,4,8,1,1,1,1,1),
-    # 12:(1,4,8,2,4,5,2,3),
-    # 13:(1,4,8,2,3,4,2,3),
-    # 14:(1,4,8,2,2,1,2,3),
-    # 15:(1,4,8,2,1,1,2,3),
-    # 12:(1,8,4,3,5,4,3,4),
-    # 13:(1,8,4,3,3,4,3,4),
-    # 14:(1,8,4,3,2,1,3,4),
-    # 15:(1,8,4,3,1,1,3,4),
-    # 16:(1,20,20,3,5,5,3,4),
-    # 17:(1,20,20,3,5,4,3,4),
-    # 18:(1,20,20,3,2,1,3,4),
-    # 19:(1,20,20,3,1,1,3,4),
-    # 20:(128,32,32,1,5,5,1,6),
-    # 21:(128,14,14,6,5,5,6,16),
-    # 22:(4,4,4,1,2,2,1,2),
-    # 23:(4,14,14,1,5,5,1,16),
+    2:(1,4,4,1,2,2,1,1),
+    3:(1,4,4,1,1,1,1,1),
+    4:(1,4,8,1,4,4,1,1),
+    5:(1,4,8,1,3,3,1,1),
+    6:(1,4,8,1,2,2,1,1),
+    7:(1,4,8,1,1,1,1,1),
+    8:(1,4,8,1,4,5,1,1),
+    9:(1,4,8,1,3,4,1,1),
+    10:(1,4,8,1,2,1,1,1),
+    11:(1,4,8,1,1,1,1,1),
+    12:(1,4,8,2,4,5,2,3),
+    13:(1,4,8,2,3,4,2,3),
+    14:(1,4,8,2,2,1,2,3),
+    15:(1,4,8,2,1,1,2,3),
+    12:(1,8,4,3,5,4,3,4),
+    13:(1,8,4,3,3,4,3,4),
+    14:(1,8,4,3,2,1,3,4),
+    15:(1,8,4,3,1,1,3,4),
+    16:(1,20,20,3,5,5,3,4),
+    17:(1,20,20,3,5,4,3,4),
+    18:(1,20,20,3,2,1,3,4),
+    19:(1,20,20,3,1,1,3,4),
+    20:(128,32,32,1,5,5,1,6),
+    21:(128,14,14,6,5,5,6,16),
+    22:(4,4,4,1,2,2,1,2),
+    23:(4,14,14,1,5,5,1,16),
 }
 
 sess = tf.Session()
 init = tf.global_variables_initializer()
 sess.run(init)
-
-for i in range(0,1):
+test_passed = True
+for i in range(0,2):
     for shape in shape_dict.values():
-        x,w = get_random_np(shape)
-        result = test_convam(sess=sess,_x=x,_w=w,_strides=[1,2,2,1])
-        print("test with shape x: "+str(shape[0:4])+" w: "+str(shape[4:8]) + str(result))
+        x,w = get_random_np(shape) if FLOAT else get_random_int_np(shape) 
+        stride = [1,i+1,i+1,1]
+        result = test_convam(sess=sess,_x=x,_w=w,_strides=stride)
+        if result == False:
+            test_passed = False
+        print("test with shape x: "+str(shape[0:4])+" w: "+str(shape[4:8]) + "Stride: " + str(stride) + "Passed: "+ str(result))
+
+exit(0) if test_passed else exit(1)

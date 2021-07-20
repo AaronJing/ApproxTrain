@@ -20,8 +20,8 @@ with tf.Session('') as sess:
 
     _x = np.asarray([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]).reshape((1,4,4,1))
     
-    convam = convam_module.convam(x, W, strides=[1, 2, 2, 1], padding='SAME')
-    conv = tf.nn.conv2d(x, W, strides=[1, 2, 2, 1], padding='SAME')
+    convam = convam_module.convam(x, W, strides=[1, 2, 2, 1], padding='VALID')
+    conv = tf.nn.conv2d(x, W, strides=[1, 2, 2, 1], padding='VALID')
     convam_out = sess.run(convam,feed_dict={x:_x,W:_W})
     conv_out = sess.run(conv,feed_dict={x:_x,W:_W})
 
@@ -36,6 +36,7 @@ with tf.Session('') as sess:
     grad_am_input = sess.run(tf.gradients(convam,x),feed_dict={x:_x,W:_W})
     print("AM: grad input")
     print(grad_am_input)
+    abss = np.abs(np.asarray(grad_conv_input) - np.asarray(grad_am_input))/ np.asarray(grad_am_input)
     # grad_am_filter = sess.run(tf.gradients(convam,f))
     # print("AM: grad filter")
     # print(grad_am_filter)
