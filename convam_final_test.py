@@ -4,6 +4,7 @@ import sys
 import numpy
 import _convam_grad
 from tensorflow.contrib.layers import flatten
+
 numpy.set_printoptions(threshold=sys.maxsize)
 convam_module = tf.load_op_library('convam_gpu.so')
 # Test different shape
@@ -85,7 +86,9 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
+
         abs_err_backward_filter_valid = np.abs(backward_filter_am-backward_filter_conv)/backward_filter_conv
+
         abs_err_backward_filter_valid = np.asarray(abs_err_backward_filter_valid)
         max_abs_err_backward_filter_valid = np.max(abs_err_backward_filter_valid)
         err_backward_filter_valid = np.mean(np.abs(backward_filter_am-backward_filter_conv)/backward_filter_conv)
@@ -102,6 +105,7 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print()
             success = False
         abs_err_backward_input_valid = np.abs(backward_input_am-backward_input_conv)/backward_input_conv
+        print(backward_input_conv)
         abs_err_backward_input_valid = np.asarray(abs_err_backward_input_valid)
         max_abs_err_backward_input_valid = np.max( abs_err_backward_input_valid)
         err_backward_input_valid = np.mean(np.abs(backward_input_am-backward_input_conv)/backward_input_conv)
@@ -158,34 +162,34 @@ def get_random_np(x):
 def get_random_int_np(x):
     return np.random.randint(100,size=x[0:4]),np.random.randint(100,size=x[4:8])
 shape_dict = {
-    0:(1,4,4,1,4,4,1,1),
+    # 0:(1,4,4,1,4,4,1,1),
     1:(1,4,4,1,3,3,1,1),
-    2:(1,4,4,1,2,2,1,1),
-    3:(1,4,4,1,1,1,1,1),
-    4:(1,4,8,1,4,4,1,1),
-    5:(1,4,8,1,3,3,1,1),
-    6:(1,4,8,1,2,2,1,1),
-    7:(1,4,8,1,1,1,1,1),
-    8:(1,4,8,1,4,5,1,1),
-    9:(1,4,8,1,3,4,1,1),
-    10:(1,4,8,1,2,1,1,1),
-    11:(1,4,8,1,1,1,1,1),
-    12:(1,4,8,2,4,5,2,3),
-    13:(1,4,8,2,3,4,2,3),
-    14:(1,4,8,2,2,1,2,3),
-    15:(1,4,8,2,1,1,2,3),
-    12:(1,8,4,3,5,4,3,4),
-    13:(1,8,4,3,3,4,3,4),
-    14:(1,8,4,3,2,1,3,4),
-    15:(1,8,4,3,1,1,3,4),
-    16:(1,20,20,3,5,4,3,4),
-    17:(1,20,20,3,3,4,3,4),
-    18:(1,20,20,3,2,1,3,4),
-    19:(1,20,20,3,1,1,3,4),
-    20:(128,32,32,1,5,5,1,6),
-    21:(128,14,14,6,5,5,6,16),
-    22:(4,4,4,1,2,2,1,2),
-    23:(4,14,14,1,5,5,1,16),
+    # 2:(1,4,4,1,2,2,1,1),
+    # 3:(1,4,4,1,1,1,1,1),
+    # 4:(1,4,8,1,4,4,1,1),
+    # 5:(1,4,8,1,3,3,1,1),
+    # 6:(1,4,8,1,2,2,1,1),
+    # 7:(1,4,8,1,1,1,1,1),
+    # 8:(1,4,8,1,4,5,1,1),
+    # 9:(1,4,8,1,3,4,1,1),
+    # 10:(1,4,8,1,2,1,1,1),
+    # 11:(1,4,8,1,1,1,1,1),
+    # 12:(1,4,8,2,4,5,2,3),
+    # 13:(1,4,8,2,3,4,2,3),
+    # 14:(1,4,8,2,2,1,2,3),
+    # 15:(1,4,8,2,1,1,2,3),
+    # 12:(1,8,4,3,5,4,3,4),
+    # 13:(1,8,4,3,3,4,3,4),
+    # 14:(1,8,4,3,2,1,3,4),
+    # 15:(1,8,4,3,1,1,3,4),
+    # 16:(1,20,20,3,5,5,3,4),
+    # 17:(1,20,20,3,5,4,3,4),
+    # 18:(1,20,20,3,2,1,3,4),
+    # 19:(1,20,20,3,1,1,3,4),
+    # 20:(128,32,32,1,5,5,1,6),
+    # 21:(128,14,14,6,5,5,6,16),
+    # 22:(4,4,4,1,2,2,1,2),
+    # 23:(4,14,14,1,5,5,1,16),
 }
 
 sess = tf.Session()
@@ -195,5 +199,5 @@ sess.run(init)
 for i in range(0,1):
     for shape in shape_dict.values():
         x,w = get_random_np(shape)
-        result = test_convam(sess=sess,_x=x,_w=w)
+        result = test_convam(sess=sess,_x=x,_w=w,_strides=[1,2,2,1])
         print("test with shape x: "+str(shape[0:4])+" w: "+str(shape[4:8]) + str(result))
