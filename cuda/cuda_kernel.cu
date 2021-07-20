@@ -762,11 +762,7 @@ void im2colLauncher_Improved(
 
 // //=============================================================================
 // //===============================IM2COL KERNEL=================================
-// //=============================================================================
-// // __global__ void im2col_improved_filtergrad(const float *in,
-// //     int c, int w, int h, int ow, int oh,
-// //     int kw, int kh, int pw, int ph, int sw, int sh,
-// //     int dw, int dh, int po, int pc, float *out)
+
 __global__ void im2col_improved_filtergrad(const float *in, int batch,
     int c, int w, int h, int ow, int oh,
     int kw, int kh, int pw, int ph, int sw, int sh,
@@ -778,8 +774,8 @@ unsigned pl = batch * oh * ow;
 for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += blockDim.x * gridDim.x)
 {
     unsigned patchId = (tId + po*pl) / pl;
-    unsigned outB    = (patchId / c) / kh; // kh
-    unsigned outH    = (patchId / c) % kh; // kw
+    unsigned outB    = (patchId / c) / kw; // kh
+    unsigned outH    = (patchId / c) % kw; // kw
     unsigned outW    = patchId % c; // c
 
     unsigned valueId = (tId + po*pl) % pl; // element position in window
@@ -820,14 +816,13 @@ void im2colLauncher_Improved_filtergrad(
     const int dh,
     float* data_col)
 {
-    // unsigned pl = filter_row * filter_col * in_depth;
-    // unsigned blockSize = 256;
-    // unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
-    // im2col_improved_filtergrad<<<gridSize,blockSize,0>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
-
     unsigned pl = batch * out_row * out_col;
     unsigned blockSize = 256;
     unsigned gridSize  = (filter_row * pl + blockSize - 1) / blockSize;
+    // __global__ void im2col_improved_filtergrad(const float *in, int batch,
+    // int c, int w, int h, int ow, int oh,
+    // int kw, int kh, int pw, int ph, int sw, int sh,
+    // int dw, int dh, int po, int pc, float *out)
     im2col_improved_filtergrad<<<gridSize,blockSize,0>>>(im, batch, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,filter_row*filter_col*in_depth,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );

@@ -66,3 +66,4 @@ src/config.h
 __pycache__
 test/ResNet-Tensorflow-Test/logs
 test/ResNet-Tensorflow-Test/output
+output

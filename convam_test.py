@@ -15,10 +15,10 @@ with tf.Session('') as sess:
     # #x = tf.constant([[[[1,2]],[[3,4]]]],dtype='float')
     # f = tf.constant([2,3,1,2,3,245,3,2,2,5,3,21,234,45,67,0],shape=(4,4,1,1),dtype='float')
     x = tf.placeholder(tf.float32, shape = (2,2,2,1))
-    W = tf.placeholder(tf.float32, shape = (2,2,1,1))
+    W = tf.placeholder(tf.float32, shape = (2,1,1,1))
     _x = np.asarray([1,2,3,4,5,6,7,8]).reshape((2,2,2,1))
 
-    _W = np.asarray([1,1,1,1]).reshape((2,2,1,1))
+    _W = np.asarray([1,1]).reshape((2,1,1,1))
     
     convam = convam_module.convam(x, W, strides=[1, 1, 1, 1], padding='SAME')
     conv = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -30,10 +30,10 @@ with tf.Session('') as sess:
     print("AM: forward output")
     print(convam_out)
     # convam_shape = convam.shape
-    grad_conv_input = sess.run(tf.gradients(conv,x),feed_dict={x:_x,W:_W})
+    grad_conv_input = sess.run(tf.gradients(conv,W),feed_dict={x:_x,W:_W})
     print("Official")
     print(grad_conv_input)
-    grad_am_input = sess.run(tf.gradients(convam,x),feed_dict={x:_x,W:_W})
+    grad_am_input = sess.run(tf.gradients(convam,W),feed_dict={x:_x,W:_W})
     print("AM: grad input")
     print(grad_am_input)
     # grad_am_filter = sess.run(tf.gradients(convam,f))
