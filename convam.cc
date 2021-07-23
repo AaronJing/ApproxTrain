@@ -12,6 +12,7 @@
 #include "tensorflow/core/util/use_cudnn.h"
 // #include "tensorflow/core/kernels/conv_ops_gpu.h"
 #include "tensorflow/core/platform/stream_executor.h"
+#include "tensorflow/core/framework/kernel_shape_util.h"
 #include <math.h>
 #include <iostream>
 #include <fstream>

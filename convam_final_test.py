@@ -1,67 +1,68 @@
-import tensorflow as tf
+
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
 import numpy as np
 import sys
-import numpy
 import _convam_grad
-from tensorflow.contrib.layers import flatten
+import tensorflow as tf
+# from tensorflow.contrib.layers import flatten
 
-numpy.set_printoptions(threshold=sys.maxsize)
-convam_module = tf.load_op_library('convam_gpu.so')
+np.set_printoptions(threshold=sys.maxsize)
+convam_module = tf.load_op_library('/home/jing/nAMDNN/convam_gpu.so')
 
 FLOAT = False
 
 def float_comparison(x, y):
-    return np.abs(x-y)/y
+    return np.abs(x.numpy()-y.numpy())/y.numpy()
 
 def int_comparison(x, y):
-    return x.astype(int)-y.astype(int)
+    return x.numpy().astype(int)-y.numpy().astype(int)
 
-def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
+def test_convam(_x,_w,_strides=[1, 1, 1, 1]):
     with tf.device('/gpu:0'):
-        x = tf.placeholder(tf.float32, shape = _x.shape)
-        W = tf.placeholder(tf.float32, shape = _w.shape)
-        # Test VALID padding
-        wx_convam = convam_module.convam(x, W, strides=_strides, padding='VALID')
-        grad_filter_am = tf.gradients(wx_convam, W)
-        grad_input_am = tf.gradients(wx_convam,x)
-
-        wx_conv = tf.nn.conv2d(x, W, strides=_strides, padding='VALID')
-        grad_filter = tf.gradients(wx_conv, W)
-        grad_input = tf.gradients(wx_conv,x)
-
-        # Test SAME padding
-        wx_convam_same = convam_module.convam(x, W, strides=_strides, padding='SAME')
-        grad_filter_am_same = tf.gradients(wx_convam_same, W)
-        grad_input_am_same = tf.gradients(wx_convam_same,x)
-
-        wx_conv_same = tf.nn.conv2d(x, W, strides=_strides, padding='SAME')
-        grad_filter_same = tf.gradients(wx_conv_same, W)
-        grad_input_same = tf.gradients(wx_conv_same,x)
+        x = _x
+        W = _w
+        with tf.GradientTape(persistent=True) as g:
+            g.watch(x)
+            g.watch(W)
+            wx_convam = convam_module.convam(x, W, strides=_strides, padding='VALID')
+            wx_conv = tf.nn.conv2d(x, W, strides=_strides, padding='VALID')
+            wx_convam_same = convam_module.convam(x, W, strides=_strides, padding='SAME')
+            wx_conv_same = tf.nn.conv2d(x, W, strides=_strides, padding='SAME')
+    
+        grad_filter_am = g.gradient(wx_convam, W)
+        grad_input_am = g.gradient(wx_convam,x)
+        grad_filter = g.gradient(wx_conv, W)
+        grad_input = g.gradient(wx_conv,x)
+        grad_filter_am_same = g.gradient(wx_convam_same, W)
+        grad_input_am_same = g.gradient(wx_convam_same,x)
+        grad_filter_same = g.gradient(wx_conv_same, W)
+        grad_input_same = g.gradient(wx_conv_same,x)
 
         #evaluate
-        forward_am = sess.run(wx_convam,feed_dict = {x:_x,W:_w})
-        forward_conv = sess.run(wx_conv,feed_dict = {x:_x,W:_w})
+        forward_am = wx_convam
+        forward_conv = wx_conv
 
-        backward_filter_am = np.asarray(sess.run(grad_filter_am,feed_dict = {x:_x,W:_w}))
-        backward_filter_conv = np.asarray(sess.run(grad_filter,feed_dict = {x:_x,W:_w}))
+        backward_filter_am = grad_filter_am
+        backward_filter_conv = grad_filter
 
-        backward_input_am = np.asarray(sess.run(grad_input_am ,feed_dict = {x:_x,W:_w}))
-        backward_input_conv = np.asarray(sess.run(grad_input,feed_dict = {x:_x,W:_w}))
+        backward_input_am =  grad_input_am
+        backward_input_conv = grad_input
 
-        forward_am_same = np.asarray(sess.run(wx_convam_same,feed_dict = {x:_x,W:_w}))
-        forward_conv_same = np.asarray(sess.run(wx_conv_same,feed_dict = {x:_x,W:_w}))
+        forward_am_same = wx_convam_same
+        forward_conv_same = wx_convam_same
 
-        backward_filter_am_same = np.asarray(sess.run(grad_filter_am_same,feed_dict = {x:_x,W:_w}))
-        backward_filter_conv_same = np.asarray(sess.run(grad_filter_same,feed_dict = {x:_x,W:_w}))
+        backward_filter_am_same = grad_filter_am_same
+        backward_filter_conv_same = grad_filter_same
 
-        backward_input_am_same = np.asarray(sess.run(grad_input_am_same ,feed_dict = {x:_x,W:_w}))
-        backward_input_conv_same = np.asarray(sess.run(grad_input_same,feed_dict = {x:_x,W:_w}))
+        backward_input_am_same = grad_input_am_same
+        backward_input_conv_same = grad_input_same
         success = True
-
-        abs_err_forward_valid = float_comparison(forward_am,forward_conv) if FLOAT else int_comparison(forward_am,forward_conv)
+        comparator = float_comparison if FLOAT else int_comparison
+        abs_err_forward_valid = comparator(forward_am,forward_conv)
         abs_err_forward_valid = np.asarray(abs_err_forward_valid)
         max_abs_err_forward_valid = np.max(abs_err_forward_valid)
-        err_forward_valid = np.mean(float_comparison(forward_am,forward_conv) if FLOAT else int_comparison(forward_am,forward_conv)) 
+        err_forward_valid = np.mean(comparator(forward_am,forward_conv)) 
         if err_forward_valid > 1e-7:
             print("case start err_forward_valid")
 
@@ -76,10 +77,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print()
             success = False
 
-        abs_err_forward_same = float_comparison(forward_am_same,forward_conv_same) if FLOAT else int_comparison(forward_am_same,forward_conv_same)
+        abs_err_forward_same = comparator(forward_am_same,forward_conv_same)
         abs_err_forward_same = np.asarray(abs_err_forward_same)
         max_abs_err_forward_same = np.max(abs_err_forward_same)
-        err_forward_same = np.mean(float_comparison(forward_am_same,forward_conv_same) if FLOAT else int_comparison(forward_am_same,forward_conv_same))
+        err_forward_same = np.mean(comparator(forward_am_same,forward_conv_same))
         if  err_forward_same > 1e-7:
             print("case start err_forward_same")
             # print(forward_am_same)
@@ -93,10 +94,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print()
             success = False
 
-        abs_err_backward_filter_valid = float_comparison(backward_filter_am, backward_filter_conv) if FLOAT else int_comparison(backward_filter_am, backward_filter_conv)
+        abs_err_backward_filter_valid = comparator(backward_filter_am, backward_filter_conv)
         abs_err_backward_filter_valid = np.asarray(abs_err_backward_filter_valid)
         max_abs_err_backward_filter_valid = np.max(abs_err_backward_filter_valid)
-        err_backward_filter_valid = np.mean(float_comparison(backward_filter_am, backward_filter_conv) if FLOAT else int_comparison(backward_filter_am, backward_filter_conv))
+        err_backward_filter_valid = np.mean(comparator(backward_filter_am, backward_filter_conv))
         if err_backward_filter_valid >  1e-7:
             print("case start err_backward_filter_valid")
             # print(backward_filter_am)
@@ -109,10 +110,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
-        abs_err_backward_input_valid = float_comparison(backward_input_am, backward_input_conv) if FLOAT else int_comparison(backward_input_am, backward_input_conv) 
+        abs_err_backward_input_valid = comparator(backward_input_am, backward_input_conv)
         abs_err_backward_input_valid = np.asarray(abs_err_backward_input_valid)
         max_abs_err_backward_input_valid = np.max( abs_err_backward_input_valid)
-        err_backward_input_valid = np.mean(float_comparison(backward_input_am, backward_input_conv) if FLOAT else int_comparison(backward_input_am, backward_input_conv) )
+        err_backward_input_valid = np.mean(comparator(backward_input_am, backward_input_conv))
         if err_backward_input_valid > 1e-7:
             print("case start err_backward_input_valid")
             # print(backward_input_am)
@@ -125,10 +126,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
-        abs_err_backward_filter_same = float_comparison(backward_filter_am_same,backward_filter_conv_same) if FLOAT else int_comparison(backward_filter_am_same, backward_filter_conv_same)  
+        abs_err_backward_filter_same = comparator(backward_filter_am_same,backward_filter_conv_same)
         abs_err_backward_filter_same = np.asarray( abs_err_backward_filter_same)
         max_abs_err_backward_filter_same = np.max( abs_err_backward_filter_same)
-        err_backward_filter_same = np.mean(float_comparison(backward_filter_am_same,backward_filter_conv_same) if FLOAT else int_comparison(backward_filter_am_same, backward_filter_conv_same)  )
+        err_backward_filter_same = np.mean(comparator(backward_filter_am_same,backward_filter_conv_same))
         if err_backward_filter_same >  1e-7:
             print("case start err_backward_filter_same")
             # print(backward_filter_am_same)
@@ -141,10 +142,10 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
             print("case end")
             print()
             success = False
-        abs_err_backward_input_same =float_comparison(backward_input_am_same, backward_input_conv_same) if FLOAT else int_comparison(backward_input_am_same, backward_input_conv_same) 
+        abs_err_backward_input_same =comparator(backward_input_am_same, backward_input_conv_same)
         abs_err_backward_input_same = np.asarray(abs_err_backward_input_same)
         max_abs_err_backward_input_same = np.max(abs_err_backward_input_same)
-        err_backward_input_same = np.mean(float_comparison(backward_input_am_same, backward_input_conv_same) if FLOAT else int_comparison(backward_input_am_same, backward_input_conv_same) )
+        err_backward_input_same = np.mean(comparator(backward_input_am_same, backward_input_conv_same))
         if err_backward_input_same > 1e-7:
             print("case start err_backward_input_same")
             # print(backward_input_am_same)
@@ -162,9 +163,9 @@ def test_convam(sess,_x,_w,_strides=[1, 1, 1, 1]):
         return success
 
 def get_random_np(x):
-    return np.random.rand(x[0],x[1],x[2],x[3]),np.random.rand(x[4],x[5],x[6],x[7])
+    return tf.convert_to_tensor(np.random.rand(x[0],x[1],x[2],x[3]),dtype=float),tf.convert_to_tensor(np.random.rand(x[4],x[5],x[6],x[7]),dtype=float)
 def get_random_int_np(x):
-    return np.random.randint(-2,2,size=x[0:4]),np.random.randint(-2,2,size=x[4:8])
+    return tf.convert_to_tensor(np.random.randint(-2,2,size=x[0:4]),dtype=float),tf.convert_to_tensor(np.random.randint(-2,2,size=x[4:8]),dtype=float)
 shape_dict = {
     0:(1,4,4,1,4,4,1,1),
     1:(1,4,4,1,3,3,1,1),
@@ -196,15 +197,13 @@ shape_dict = {
     23:(4,14,14,1,5,5,1,16),
 }
 
-sess = tf.Session()
-init = tf.global_variables_initializer()
-sess.run(init)
+
 test_passed = True
 for i in range(0,2):
     for shape in shape_dict.values():
         x,w = get_random_np(shape) if FLOAT else get_random_int_np(shape) 
         stride = [1,i+1,i+1,1]
-        result = test_convam(sess=sess,_x=x,_w=w,_strides=stride)
+        result = test_convam(_x=x,_w=w,_strides=stride)
         if result == False:
             test_passed = False
         print("test with shape x: "+str(shape[0:4])+" w: "+str(shape[4:8]) + "Stride: " + str(stride) + "Passed: "+ str(result))
