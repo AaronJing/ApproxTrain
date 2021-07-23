@@ -8,6 +8,36 @@ pip3 install --user tensorflow
 
 ### cuDNN 810 CUDA11.2
 
+## Imagenet Evaluation
+
+### Clone tf official models repo
+https://github.com/tensorflow/models/blob/master/official/README.md
+
+1. Clone the GitHub repository:
+
+```shell
+git clone https://github.com/tensorflow/models.git
+```
+
+2. Add the top-level ***/models*** folder to the Python path.
+
+```shell
+export PYTHONPATH=$PYTHONPATH:/path/to/models
+```
+
+If you are using a Colab notebook, please set the Python path with os.environ.
+
+```python
+import os
+os.environ['PYTHONPATH'] += ":/path/to/models"
+```
+
+3. Install other dependencies
+
+```shell
+pip3 install --user -r official/requirements.txt
+```
+### Run
 
 ## Final Test Accuracy
 
