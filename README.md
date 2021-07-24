@@ -21,7 +21,7 @@ pip3 install --user tensorflow
 ### TF2.5 ResNet50 with AM
 100 steps = 855 seconds
 3.74 examples/second
-
+8.55 second/step
 ### breakdown without AM per step
 stage | operation | Time 
 ------------ | ------------ | ------------- 
