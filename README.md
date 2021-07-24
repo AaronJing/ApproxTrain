@@ -7,6 +7,22 @@ pip3 install --upgrade pip
 pip3 install --user tensorflow
 
 ### cuDNN 810 CUDA11.2
+## TF2.5 Profile
+### resnet50 arch
+
+### TF2.5 ResNet50 Official
+100 steps = 28 seconds
+114 examples/second
+### TF2.5 ResNet50 without AM
+100 steps =  140 seconds
+23 examples/second
+### TF2.5 ResNet50 with AM
+100 steps = 855 seconds
+3.74 examples/second
+
+### breakdown without AM
+
+### breakdown with AM
 
 ## Imagenet Evaluation
 ### imagenet run tfrecords preparation scripts
@@ -42,13 +58,8 @@ pip3 install --user -r official/requirements.txt
 ```
 ### Run
 ```
-python3 classifier_trainer.py \
-  --mode=train_and_eval \
-  --model_type=resnet \
-  --dataset=imagenet \
-  --model_dir=/home/jing/res50imagenet_test \
-  --data_dir=/home/jing/tfrecordsImagenet/gcs_imagenet/tf_records/train \
-  --config_file=configs/examples/resnet/imagenet/gpu.yaml
+export PYTHONPATH=$PYTHONPATH:~/projectAMDNN/models && \
+python3 models/official/vision/image_classification/classifier_trainer.py   --mode=train_and_eval   --model_type=resnet   --dataset=imagenet   --model_dir=/home/jing/res50imagenet_test   --data_dir=/home/jing/tfrecordsImagenet/gcs_imagenet/tf_records/train   --config_file=/home/jing/projectAMDNN/models/official/vision/image_classification/configs/examples/resnet/imagenet/gpu.yaml 
 ```
 ## Final Test Accuracy
 
