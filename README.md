@@ -46,8 +46,8 @@ Total | - | 7.87s
 
 BATCH Size | Official | No AM | AM
 ------------ | ------------ | ------------- | ------------- 
-1024 | 1.022s/step | 7.1s/step | 26s/step
-16 | 7s/step | 15s/step | 34s/step
+1024 | 21ms/step 1s/EPOCH| 128ms/step 9s/EPOCH | 444ms/step 27s/EPOCH
+16 | 2ms/step 8s/EPOCH| 4ms/step 15s/EPOCH | 9ms/step 34s/EPOCH
 
 ## Imagenet Evaluation
 ### imagenet run tfrecords preparation scripts
