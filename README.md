@@ -13,16 +13,35 @@ pip3 install --user tensorflow
 ### TF2.5 ResNet50 Official
 100 steps = 28 seconds
 114 examples/second
+0.28 second/step
 ### TF2.5 ResNet50 without AM
 100 steps =  140 seconds
 23 examples/second
+1.4 second/step
 ### TF2.5 ResNet50 with AM
 100 steps = 855 seconds
 3.74 examples/second
 
-### breakdown without AM
-
-### breakdown with AM
+### breakdown without AM per step
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.05s
+Forward | GEMM | 0.274s
+BackwardError | Im2Col | 0.091s
+BackwardError | GEMM | 0.345s
+BackwardFilter | Im2Col | 0.269s
+BackwardFilter | GEMM | 0.274s
+Total | - | 1.31s
+### breakdown with AM per step
+stage | operation | Time 
+------------ | ------------ | ------------- 
+Forward | Im2col | 0.05s
+Forward | GEMM | 2.13s
+BackwardError | Im2Col | 0.282s
+BackwardError | GEMM | 2.237s
+BackwardFilter | Im2Col | 0.09s
+BackwardFilter | GEMM | 3.05s
+Total | - | 7.87s s
 
 ## Imagenet Evaluation
 ### imagenet run tfrecords preparation scripts
