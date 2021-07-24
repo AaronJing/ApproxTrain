@@ -43,15 +43,11 @@ BackwardFilter | Im2Col | 0.09s
 BackwardFilter | GEMM | 3.05s
 Total | - | 7.87s 
 ## Mnist profile
-BATCH Size 1024
-Official 1.022s per step
-No AM    7.1s per step
-AM 26s per step
 
-BATCH Size 16
-Official 7s per step
-No AM  15s per step
-AM 34s per step
+BATCH Size | Official | No AM | AM
+------------ | ------------ | ------------- | ------------- 
+1024 | 1.022s/step | 7.1s/step | 26s/step
+16 | 7s/step | 15s/step | 34s/step
 
 ## Imagenet Evaluation
 ### imagenet run tfrecords preparation scripts
