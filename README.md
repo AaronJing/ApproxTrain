@@ -37,9 +37,9 @@ stage | operation | Time
 ------------ | ------------ | ------------- 
 Forward | Im2col | 0.05s
 Forward | GEMM | 2.13s
-BackwardError | Im2Col | 0.282s
+BackwardError | Im2Col | 0.09s
 BackwardError | GEMM | 2.237s
-BackwardFilter | Im2Col | 0.09s
+BackwardFilter | Im2Col | 0.282s
 BackwardFilter | GEMM | 3.05s
 Total | - | 7.87s 
 ## Mnist profile
