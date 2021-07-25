@@ -700,7 +700,11 @@ public:
   double end = realtime();
   #ifdef PROFILE
   cout << "Forward preparation Time difference = " << end - begin  << endl;
+  cout << "Forward shape: Input " << dimensions.batch << " " << dimensions.input_rows << " " << dimensions.input_cols << " " << dimensions.in_depth \
+  << " Filter " << dimensions.filter_rows << " " << dimensions.filter_cols << " " << dimensions.in_depth << " " << dimensions.out_depth << endl;
   #endif
+  
+  
     ConvamKernellLauncher(
       f_input_data,
       f_filter_data,
@@ -1201,6 +1205,8 @@ public:
     double end = realtime();
   #ifdef PROFILE
    cout << "Backprop filter grad Time difference = " << end - begin << endl;
+   cout << "Backpropfilter shape: Input " << input_batch << " " << input_height << " " << input_width << " " << input_channel \
+  << " Output " << input_batch << " " << grad_height << " " << grad_width << " " << grad_channel << endl;
    #endif
     ConvamFilterGradKernelLauncher(
       in_data,
@@ -1642,6 +1648,8 @@ class ConvamInputGradOpGPU : public OpKernel {
 
     #ifdef PROFILE
      cout << "backprop input grad preparation Time difference = " << end - begin << endl;
+     cout << "Backpropinput shape: Output " << input_batch << " " << hole_grad_height << " " << hole_grad_width << " " << output_channel \
+  << " filter " << filter_height<< " " << filter_width << " " << input_channel << " " << output_channel << endl;
      #endif
     ConvamInputGradKernelLauncher(
         // grad needs pading and holes

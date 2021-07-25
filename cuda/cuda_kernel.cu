@@ -243,9 +243,14 @@ void ConvamKernellLauncher(
       const int size = m*n;
       dim3 blockSize(16, 16, 1);
       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
+      double begin = realtime();
       gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
       gpuErrchk( cudaPeekAtLastError() );
-gpuErrchk( cudaDeviceSynchronize() );
+    gpuErrchk( cudaDeviceSynchronize() );
+    double end = realtime();
+    #ifdef PROFILE
+    cout << "Forward gemm time difference = " << end - begin << endl;
+#endif
       return;
     } else if (filter_row == in_row && filter_col== in_col &&
                padding == 1) {
@@ -259,9 +264,14 @@ gpuErrchk( cudaDeviceSynchronize() );
       const int size = m*n;
       dim3 blockSize(16, 16, 1);
       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
+      double begin = realtime();
       gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
       gpuErrchk( cudaPeekAtLastError() );
 gpuErrchk( cudaDeviceSynchronize() );
+double end = realtime();
+#ifdef PROFILE
+    cout << "Forward gemm time difference = " << end - begin << endl;
+#endif
       return;
     }
     double begin = realtime();

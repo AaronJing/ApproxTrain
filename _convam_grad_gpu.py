@@ -6,15 +6,6 @@ convam_grad_module = tf.load_op_library('/home/jing/nAMDNN/convam_gpu.so')
 
 @ops.RegisterGradient("Convam")
 def _convam_grad_cc(op,grad):
-  """The derivatives for deconvolution.
-
-  Args:
-    op: the Deconvolution op.
-    grad: the tensor representing the gradient w.r.t. the output
-
-  Returns:
-    the gradients w.r.t. the input and the filter (should be done in one gradient moudle)
-  """
   dilations = op.get_attr("dilations")
   strides = op.get_attr("strides")
   padding = op.get_attr("padding")

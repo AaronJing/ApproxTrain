@@ -9,6 +9,7 @@ rm -f *.o *.so
 # MULTIPLIER="-DFMBM16_MULTIPLIER=1"
 #PROFILE="-DPROFILE=1"
 
+
 nvcc -std=c++11 -c -o cuda_kernel.cu.o cuda/cuda_kernel.cu \
   ${TF_CFLAGS[@]} -D GOOGLE_CUDA=1 $PROFILE -x cu -Xcompiler -fPIC
 nvcc -std=c++11 -c -o gemm.cu.o cuda/gemm.cu \
