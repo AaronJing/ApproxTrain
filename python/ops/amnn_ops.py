@@ -38,7 +38,7 @@ from tensorflow.python.util.deprecation import deprecated_argument_lookup
 
 from tensorflow.python.util.tf_export import tf_export
 import tensorflow as tf
-convam_module = tf.load_op_library('/home/jing/projectAMDNN/nAMDNN/convam_gpu.so')
+convam_module = tf.load_op_library('/home/jing/projectAMDNN/AMDNN/convam_gpu.so')
 
 _CHANNELS_LAST_FORMATS = frozenset({
     "NWC", "NHC", "NHWC", "NWHC", "NDHWC", "NDWHC", "NHDWC", "NHWDC", "NWDHC",

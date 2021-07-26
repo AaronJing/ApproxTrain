@@ -249,7 +249,7 @@ void ConvamKernellLauncher(
     gpuErrchk( cudaDeviceSynchronize() );
     double end = realtime();
     #ifdef PROFILE
-    cout << "Forward gemm time difference = " << end - begin << endl;
+    cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
 #endif
       return;
     } else if (filter_row == in_row && filter_col== in_col &&
@@ -270,7 +270,7 @@ void ConvamKernellLauncher(
 gpuErrchk( cudaDeviceSynchronize() );
 double end = realtime();
 #ifdef PROFILE
-    cout << "Forward gemm time difference = " << end - begin << endl;
+    cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
 #endif
       return;
     }
@@ -296,7 +296,7 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
     gpuErrchk( cudaDeviceSynchronize() );
     end = realtime();
 #ifdef PROFILE
-    cout << "Forward gemm time difference = " << end - begin << endl;
+    cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
 #endif
 
 
@@ -376,7 +376,7 @@ void ConvamFilterGradKernelLauncher(
     end = realtime();
 
 #ifdef PROFILE
-    cout << "Filter gradient gemm difference = " << end - begin << endl;
+    cout << "Filter gradient gemm difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
 #endif
 
 
@@ -547,7 +547,7 @@ void ConvamInputGradKernelLauncher(
     double end = realtime();
 
 #ifdef PROFILE
-    cout << "Error backpropagation: Gemm inverse time = " << end - begin << endl;
+    cout << "Error backpropagation: Gemm inverse time = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
 #endif
 
 };
