@@ -7,7 +7,7 @@
 #include "tensorflow/core/util/mirror_pad_mode.h"
 #include "tensorflow/core/util/padding.h"
 #include "tensorflow/core/util/tensor_format.h"
-#include "tensorflow/core/kernels/bounds_check.h"
+#include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/util/use_cudnn.h"
 // #include "tensorflow/core/kernels/conv_ops_gpu.h"
