@@ -14,10 +14,15 @@ pip3 install --user tensorflow
 100 steps = 28 seconds
 114 examples/second
 0.28 second/step
-### TF2.5 ResNet50 without AM
+### TF2.5 ResNet50 without AM BATCHSIZE 32
 100 steps =  140 seconds
 23 examples/second
 1.4 second/step
+### TF2.5 ResNet50 without AM BATCHSIZE 64 (dual GPU)
+100 steps =  146 seconds
+43.8 examples/second
+1.46 second/step
+
 ### TF2.5 ResNet50 with AM
 100 steps = 855 seconds
 3.74 examples/second
