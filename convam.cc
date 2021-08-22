@@ -18,9 +18,10 @@
 #include <fstream>
 #include <chrono>
 #include <sys/time.h>
+#include "cuda/gpu_kernel_helper.h"
 using namespace std;
 using namespace tensorflow;
-
+using GPUDevice = Eigen::GpuDevice;
 static inline double realtime(void) {
     struct timeval tp;
     struct timezone tzp;
@@ -619,6 +620,7 @@ REGISTER_KERNEL_BUILDER(Name("Convam").Device(DEVICE_CPU), ConvamOpCPU);
 
 
 void ConvamKernellLauncher(
+        const GPUDevice &d,
   const float* inputs,
   const float* filter,
   float* im2col,
@@ -706,6 +708,7 @@ public:
   
   
     ConvamKernellLauncher(
+      context->eigen_device<GPUDevice>(),
       f_input_data,
       f_filter_data,
       im2col_data,
@@ -1032,6 +1035,7 @@ public:
 REGISTER_KERNEL_BUILDER(Name("ConvamFilterGrad").Device(DEVICE_CPU), ConvamFilterGradOpCPU);
 
 void ConvamFilterGradKernelLauncher(
+      const GPUDevice &d, 
     const float* input,
     const float* grad,
     float* im2col,
@@ -1209,6 +1213,7 @@ public:
   << " Output " << input_batch << " " << grad_height << " " << grad_width << " " << grad_channel << endl;
    #endif
     ConvamFilterGradKernelLauncher(
+            context->eigen_device<GPUDevice>(),
       in_data,
       grad,
       im2col_data,
@@ -1481,6 +1486,7 @@ REGISTER_KERNEL_BUILDER(Name("ConvamInputGrad").Device(DEVICE_CPU), ConvamInputG
 void ConvamInputGradKernelLauncher(
       // grad needs pading and holes
       // im2col input
+      const GPUDevice &d,
       const float* grad,
       float* holed_grad,
       float* im2col,
@@ -1654,6 +1660,7 @@ class ConvamInputGradOpGPU : public OpKernel {
     ConvamInputGradKernelLauncher(
         // grad needs pading and holes
         // im2col input
+        ctx->eigen_device<GPUDevice>(),
         grad,
         holed_grad_data,
         im2_col_data,

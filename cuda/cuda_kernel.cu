@@ -1,19 +1,20 @@
 #define EIGEN_USE_GPU
-#include <cuda.h>
-#include <stdio.h>
-#include <fstream>
-#include <assert.h>
-#include <cuda_fp16.h>
-#include <iostream>
-#include <chrono>
-#include <sys/time.h>
+//#include <cuda.h>
+//#include <stdio.h>
+//#include <fstream>
+//#include <assert.h>
+//#include <cuda_fp16.h>
+//#include <iostream>
+//#include <chrono>
+//#include <sys/time.h>
+#include "gpu_kernel_helper.h"
 #include "error.cuh"
 #include "gemm.cuh"
 #include "reverseNswapdim23.cuh"
-using namespace std;
+//using namespace std;
 #define THREADS_PER_BLOCK 1024
 #define BLOCK_SIZE 1024
-
+using GPUDevice = Eigen::GpuDevice;
 static inline double realtime(void) {
     struct timeval tp;
     struct timezone tzp;
@@ -81,6 +82,7 @@ for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += bl
 //=============================================================================
 //=============================================================================
 void im2colLauncher_Improved(
+    const GPUDevice &d,
     const float* im,
     const int batch,
     const int in_row,
@@ -104,7 +106,7 @@ void im2colLauncher_Improved(
     unsigned pl = filter_row * filter_col * in_depth;
     unsigned blockSize = 256;
     unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
-    im2col_improved<<<gridSize,blockSize,0>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
+    im2col_improved<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -147,6 +149,7 @@ for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += bl
 //=============================================================================
 //=============================================================================
 void im2colLauncher_Improved_filtergrad(
+    const GPUDevice &d,
     const float* im,
     const int batch,
     const int in_row,
@@ -171,7 +174,7 @@ void im2colLauncher_Improved_filtergrad(
     unsigned blockSize = 256;
     unsigned gridSize  = (filter_row * pl + blockSize - 1) / blockSize;
 
-    im2col_improved_filtergrad<<<gridSize,blockSize,0>>>(im, batch, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,filter_row*filter_col*in_depth,data_col);
+    im2col_improved_filtergrad<<<gridSize,blockSize,0,d.stream()>>>(im, batch, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,filter_row*filter_col*in_depth,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -209,6 +212,7 @@ void gemm_reference( size_t m, size_t n,
 
 
 void ConvamKernellLauncher(
+        const GPUDevice &d,
     const float* inputs,
     const float* filter,
     float* im2col,
@@ -244,7 +248,7 @@ void ConvamKernellLauncher(
       dim3 blockSize(16, 16, 1);
       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
       double begin = realtime();
-      gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
+      gemm<<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
       gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
     double end = realtime();
@@ -265,7 +269,7 @@ void ConvamKernellLauncher(
       dim3 blockSize(16, 16, 1);
       dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
       double begin = realtime();
-      gemm<<<gridSize,blockSize,0>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
+      gemm<<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
       gpuErrchk( cudaPeekAtLastError() );
 gpuErrchk( cudaDeviceSynchronize() );
 double end = realtime();
@@ -275,7 +279,7 @@ double end = realtime();
       return;
     }
     double begin = realtime();
-   im2colLauncher_Improved(inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 ,im2col);
+   im2colLauncher_Improved(d,inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 ,im2col);
    cudaDeviceSynchronize();
    double end = realtime();
 #ifdef PROFILE
@@ -290,7 +294,7 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
    dim3 blockSize(16, 16, 1);
    dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
     begin =realtime();
-   gemm<<<gridSize,blockSize,0>>>(m,n,k,im2col,lda,filter,ldb,output,ldc);
+   gemm<<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,filter,ldb,output,ldc);
 
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
@@ -334,6 +338,7 @@ void Im2col(const float* input_data, const int depth, const int height,
 
 
 void ConvamFilterGradKernelLauncher(
+        const GPUDevice &d,
     const float* input,
     const float* grad,
     float* im2col,
@@ -354,7 +359,7 @@ void ConvamFilterGradKernelLauncher(
 ){
 
     double begin = realtime();
-    im2colLauncher_Improved_filtergrad(input,batch,input_height,input_width,grad_height,grad_width,grad_channel,in_depth,filter_height,filter_width,stride_row,stride_col,\
+    im2colLauncher_Improved_filtergrad(d,input,batch,input_height,input_width,grad_height,grad_width,grad_channel,in_depth,filter_height,filter_width,stride_row,stride_col,\
     filter_left_offset,filter_top_offset,1,1,im2col);
     double end = realtime();
 #ifdef PROFILE
@@ -370,7 +375,7 @@ void ConvamFilterGradKernelLauncher(
     begin =realtime();
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<<<gridSize,blockSize,0>>>(m,n,k,im2col,lda,grad,ldb,out,ldc);
+    gemm<<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,grad,ldb,out,ldc);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
     end = realtime();
@@ -425,6 +430,7 @@ __global__ void im2col_improved_inputgrad(const float *in,
 
 }
 void im2colLauncher_Improved_inputgrad(
+    const GPUDevice &d,
     const float* im,
     const int batch,
     const int in_row,
@@ -448,7 +454,7 @@ void im2colLauncher_Improved_inputgrad(
     unsigned pl = filter_row * filter_col * in_depth;
     unsigned blockSize = 256;
     unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
-    im2col_improved_inputgrad<<<gridSize,blockSize,0>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
+    im2col_improved_inputgrad<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -458,6 +464,7 @@ void im2colLauncher_Improved_inputgrad(
 void ConvamInputGradKernelLauncher(
     // grad needs pading and holes
     // im2col input
+        const GPUDevice &d,
     const float* grad,
     float* holed_grad,
     float* im2col,
@@ -502,7 +509,7 @@ void ConvamInputGradKernelLauncher(
 //         filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
 //    } else {
     im2colLauncher_Improved_inputgrad(
-        grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
+        d,grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
         filter_width,stride_rows,stride_cols,back_pad_left,back_pad_top,1,1,im2col);
     // }
     double end1 = realtime();
@@ -541,7 +548,7 @@ void ConvamInputGradKernelLauncher(
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
 
-    gemm<<<gridSize,blockSize,0>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc);
+    gemm<<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
     double end = realtime();
