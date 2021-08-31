@@ -661,9 +661,6 @@ public:
     // printf("frontend dimensions batch %d",dimensions.batch);
     Tensor* output = nullptr;
     OP_REQUIRES_OK(context, context->allocate_output(0, out_shape, &output));
-    Tensor im2col;
-    OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
-    auto im2col_data = im2col.flat<float>().data();
     auto f_output_data = output->flat<float>().data();
     auto f_input_data = input.flat<float>().data();
     auto f_filter_data = filter.flat<float>().data();
@@ -701,7 +698,10 @@ public:
   if( dimensions.filter_cols == 1 && dimensions.filter_rows == 1 && dimensions.stride_rows == 1 && dimensions.stride_cols){
     size_t const block_size = 16;
     auto const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
-    if (dimensions.batch > max_batch) {
+    if (dimensions.batch <= max_batch) {
+        Tensor im2col;
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        auto im2col_data = im2col.flat<float>().data();
        ConvamKernellLauncher(
          context->eigen_device<GPUDevice>(),
          f_input_data,
@@ -725,6 +725,9 @@ public:
        );
     }
     else {
+       Tensor im2col;
+       OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+       auto im2col_data = im2col.flat<float>().data();
        loop1Da(i,dimensions.batch,max_batch){
            size_t const ibatch =  dimensions.batch -1 - i >= max_batch ? max_batch : dimensions.batch-i ;
         ConvamKernellLauncher(
@@ -750,29 +753,89 @@ public:
         );
        } 
     } 
-  }else{
-  loop1D(i,dimensions.batch){
-    ConvamKernellLauncher(
-      context->eigen_device<GPUDevice>(),
-      f_input_data+i*oneinputsize,
-      f_filter_data,
-      im2col_data,
-      1,//dimensions.batch,
-      dimensions.input_rows,
-      dimensions.input_cols,
-      dimensions.out_rows,
-      dimensions.out_cols,
-      dimensions.out_depth,
-      dimensions.in_depth,
-      dimensions.filter_rows,
-      dimensions.filter_cols,
-      dimensions.stride_rows,
-      dimensions.stride_cols,
-      filter_left_offset,
-      filter_top_offset,
-      params_.padding,
-      f_output_data+i*oneoutputsize
-    );
+  }else if (dimensions.filter_rows == dimensions.input_rows && dimensions.filter_cols == dimensions.input_cols&& params_.padding == 1){
+        Tensor im2col;
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        auto im2col_data = im2col.flat<float>().data();
+        ConvamKernellLauncher(
+          context->eigen_device<GPUDevice>(),
+          f_input_data,
+          f_filter_data,
+          im2col_data,
+          dimensions.batch,
+          dimensions.input_rows,
+          dimensions.input_cols,
+          dimensions.out_rows,
+          dimensions.out_cols,
+          dimensions.out_depth,
+          dimensions.in_depth,
+          dimensions.filter_rows,
+          dimensions.filter_cols,
+          dimensions.stride_rows,
+          dimensions.stride_cols,
+          filter_left_offset,
+          filter_top_offset,
+          params_.padding,
+          f_output_data
+        );
+
+  }else {
+    size_t const block_size = 16;
+    auto const max_batch = (65536*block_size + 1 - block_size)/(dimensions.out_rows*dimensions.out_cols);
+    if (dimensions.batch <= max_batch) {
+        Tensor im2col;
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        auto im2col_data = im2col.flat<float>().data();
+       ConvamKernellLauncher(
+         context->eigen_device<GPUDevice>(),
+         f_input_data,
+         f_filter_data,
+         im2col_data,
+         dimensions.batch,
+         dimensions.input_rows,
+         dimensions.input_cols,
+         dimensions.out_rows,
+         dimensions.out_cols,
+         dimensions.out_depth,
+         dimensions.in_depth,
+         dimensions.filter_rows,
+         dimensions.filter_cols,
+         dimensions.stride_rows,
+         dimensions.stride_cols,
+         filter_left_offset,
+         filter_top_offset,
+         params_.padding,
+         f_output_data
+       );
+    } else {
+        Tensor im2col;
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        auto im2col_data = im2col.flat<float>().data();
+       loop1Da(i,dimensions.batch,max_batch){
+           size_t const ibatch =  dimensions.batch -1 - i >= max_batch ? max_batch : dimensions.batch-i ;
+        ConvamKernellLauncher(
+          context->eigen_device<GPUDevice>(),
+          f_input_data+i*oneinputsize,
+          f_filter_data,
+          im2col_data,
+          ibatch,//dimensions.batch,
+          dimensions.input_rows,
+          dimensions.input_cols,
+          dimensions.out_rows,
+          dimensions.out_cols,
+          dimensions.out_depth,
+          dimensions.in_depth,
+          dimensions.filter_rows,
+          dimensions.filter_cols,
+          dimensions.stride_rows,
+          dimensions.stride_cols,
+          filter_left_offset,
+          filter_top_offset,
+          params_.padding,
+          f_output_data+i*oneoutputsize
+        );
+       } 
+    
     }
   }
   }
@@ -1682,10 +1745,6 @@ class ConvamInputGradOpGPU : public OpKernel {
     const int back_pad_right = input_width - (grad_width-1)*stride_cols-2-back_pad_left+filter_width;
     // std::cout << "back_pad_top " << back_pad_top << "back_pad_left " <<back_pad_left << "back_pad_bottom " << back_pad_bottom<< "back_pad_right " << back_pad_right<< "\n";
 
-    Tensor im2col;
-    OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
-    TensorShape({output_channel*filter_width*filter_height*input_height*input_width*grad_batch})
-    , &im2col));
     Tensor rsfilter;
     OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
     TensorShape({output_channel*filter_width*filter_height*input_channel})
@@ -1693,7 +1752,6 @@ class ConvamInputGradOpGPU : public OpKernel {
     auto grad = out_backprop.flat<float>().data();
     auto in_data = filter.flat<float>().data();
     auto out = in_backprop->template flat<float>().data();
-    auto im2_col_data = im2col.flat<float>().data();
     auto rsfilter_data = rsfilter.flat<float>().data();
     double end = realtime();
 
@@ -1703,39 +1761,87 @@ class ConvamInputGradOpGPU : public OpKernel {
   << " filter " << filter_height<< " " << filter_width << " " << input_channel << " " << output_channel << endl;
      #endif
 
-  auto const oneinputsize = input_height*input_width*input_channel; 
-  auto const oneoutputsize = grad_height*grad_width*output_channel; 
-     loop1D(i,input_batch){
-    ConvamInputGradKernelLauncher(
-        // grad needs pading and holes
-        // im2col input
-        context->eigen_device<GPUDevice>(),
-        grad+i*oneoutputsize,
-        im2_col_data,
-        grad_height,
+    auto const oneinputsize = input_height*input_width*input_channel; 
+    auto const oneoutputsize = grad_height*grad_width*output_channel; 
+    size_t const block_size = 16;
+    auto const max_batch = (65536*block_size + 1 - block_size)/(input_height*input_width);
+    if (input_batch <= max_batch) {
+        Tensor im2col;
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
+        TensorShape({output_channel*filter_width*filter_height*input_height*input_width*grad_batch})
+        , &im2col));
+        auto im2_col_data = im2col.flat<float>().data();
+        ConvamInputGradKernelLauncher(
+            // grad needs pading and holes
+            // im2col input
+            context->eigen_device<GPUDevice>(),
+            grad,
+            im2_col_data,
+            grad_height,
 
-        grad_width,
-        hole_grad_width,
-        hole_grad_height,
-        back_pad_top,
-        back_pad_left,
-        back_pad_bottom,
-        back_pad_right,
-        // reverse
-        in_data,
-        rsfilter_data,
-        filter_height,
-        filter_width,
-        output_channel,
-        stride_rows,
-        stride_cols,
-        // input related
-        1,//input_batch,
-        input_height,
-        input_width,
-        input_channel,
-        out+i*oneinputsize
-         );}
+            grad_width,
+            hole_grad_width,
+            hole_grad_height,
+            back_pad_top,
+            back_pad_left,
+            back_pad_bottom,
+            back_pad_right,
+            // reverse
+            in_data,
+            rsfilter_data,
+            filter_height,
+            filter_width,
+            output_channel,
+            stride_rows,
+            stride_cols,
+            // input related
+            input_batch,
+            input_height,
+            input_width,
+            input_channel,
+            out
+             );
+    } else {
+        Tensor im2col;
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
+        TensorShape({output_channel*filter_width*filter_height*input_height*input_width*max_batch})
+        , &im2col));
+        auto im2_col_data = im2col.flat<float>().data();
+        loop1Da(i, input_batch, max_batch){
+            size_t const ibatch =  input_batch -1 - i >= max_batch ? max_batch : input_batch-i ;
+            ConvamInputGradKernelLauncher(
+                // grad needs pading and holes
+                // im2col input
+                context->eigen_device<GPUDevice>(),
+                grad+i*oneoutputsize,
+                im2_col_data,
+                grad_height,
+
+                grad_width,
+                hole_grad_width,
+                hole_grad_height,
+                back_pad_top,
+                back_pad_left,
+                back_pad_bottom,
+                back_pad_right,
+                // reverse
+                in_data,
+                rsfilter_data,
+                filter_height,
+                filter_width,
+                output_channel,
+                stride_rows,
+                stride_cols,
+                // input related
+                ibatch,//input_batch,
+                input_height,
+                input_width,
+                input_channel,
+                out+i*oneinputsize
+                 );
+        
+        }
+    }
 
   }
 
