@@ -466,7 +466,6 @@ void ConvamInputGradKernelLauncher(
     // im2col input
         const GPUDevice &d,
     const float* grad,
-    float* holed_grad,
     float* im2col,
     const int real_grad_height,
     const int real_grad_width,

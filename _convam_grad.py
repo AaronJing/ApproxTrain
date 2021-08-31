@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import sparse_ops
-convam_grad_module = tf.load_op_library('/home/jing/nAMDNN/convam_gpu.so')
+convam_grad_module = tf.load_op_library('/scratch/ka88/jg7534/tmp/AMTensorflow/AMDNN/convam_gpu.so')
 
 @ops.RegisterGradient("Convam")
 def _convam_grad_cc(op,grad):

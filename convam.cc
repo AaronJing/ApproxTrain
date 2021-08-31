@@ -617,8 +617,8 @@ public:
 
 REGISTER_KERNEL_BUILDER(Name("Convam").Device(DEVICE_CPU), ConvamOpCPU);
 
-
-
+#define loop1D(i,n) for(int i = 0; i < n; ++i)
+#define loop1Da(i,n,inc) for(int i = 0; i < n; i+=inc)
 void ConvamKernellLauncher(
         const GPUDevice &d,
   const float* inputs,
@@ -689,30 +689,75 @@ public:
       filter_top_offset = filter_top_offset>0?filter_top_offset:0;
 
     }
-    // Tensor im2ColTmpBuffer;
-    // const int64 kMaxChunkSize = (16 * 1024 * 1024) / sizeof(float);
-
-    // {
-    //     TensorShape shape;
-    //     TensorShapeUtils::MakeShape(&kMaxChunkSize, 1, &shape);
-    //     OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, shape, &im2ColTmpBuffer));
-    // }
-    // printf("leftoffset %d, topoffset %d\n",filter_left_offset,filter_top_offset);
-    //printf("filter_Data%f\n",f_input_data[0]);
   double end = realtime();
   #ifdef PROFILE
   cout << "Forward preparation Time difference = " << end - begin  << endl;
   cout << "Forward shape: Input " << dimensions.batch << " " << dimensions.input_rows << " " << dimensions.input_cols << " " << dimensions.in_depth \
   << " Filter " << dimensions.filter_rows << " " << dimensions.filter_cols << " " << dimensions.in_depth << " " << dimensions.out_depth << endl;
   #endif
-  
-  
+ //simple tiling 
+  auto const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
+  auto const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
+  if( dimensions.filter_cols == 1 && dimensions.filter_rows == 1 && dimensions.stride_rows == 1 && dimensions.stride_cols){
+    size_t const block_size = 16;
+    auto const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
+    if (dimensions.batch > max_batch) {
+       ConvamKernellLauncher(
+         context->eigen_device<GPUDevice>(),
+         f_input_data,
+         f_filter_data,
+         im2col_data,
+         dimensions.batch,
+         dimensions.input_rows,
+         dimensions.input_cols,
+         dimensions.out_rows,
+         dimensions.out_cols,
+         dimensions.out_depth,
+         dimensions.in_depth,
+         dimensions.filter_rows,
+         dimensions.filter_cols,
+         dimensions.stride_rows,
+         dimensions.stride_cols,
+         filter_left_offset,
+         filter_top_offset,
+         params_.padding,
+         f_output_data
+       );
+    }
+    else {
+       loop1Da(i,dimensions.batch,max_batch){
+           size_t const ibatch =  dimensions.batch -1 - i >= max_batch ? max_batch : dimensions.batch-i ;
+        ConvamKernellLauncher(
+          context->eigen_device<GPUDevice>(),
+          f_input_data+i*oneinputsize,
+          f_filter_data,
+          im2col_data,
+          ibatch,//dimensions.batch,
+          dimensions.input_rows,
+          dimensions.input_cols,
+          dimensions.out_rows,
+          dimensions.out_cols,
+          dimensions.out_depth,
+          dimensions.in_depth,
+          dimensions.filter_rows,
+          dimensions.filter_cols,
+          dimensions.stride_rows,
+          dimensions.stride_cols,
+          filter_left_offset,
+          filter_top_offset,
+          params_.padding,
+          f_output_data+i*oneoutputsize
+        );
+       } 
+    } 
+  }else{
+  loop1D(i,dimensions.batch){
     ConvamKernellLauncher(
       context->eigen_device<GPUDevice>(),
-      f_input_data,
+      f_input_data+i*oneinputsize,
       f_filter_data,
       im2col_data,
-      dimensions.batch,
+      1,//dimensions.batch,
       dimensions.input_rows,
       dimensions.input_cols,
       dimensions.out_rows,
@@ -726,8 +771,10 @@ public:
       filter_left_offset,
       filter_top_offset,
       params_.padding,
-      f_output_data
+      f_output_data+i*oneoutputsize
     );
+    }
+  }
   }
   private:
     Conv2DParameters params_;
@@ -1212,10 +1259,14 @@ public:
    cout << "Backpropfilter shape: Input " << input_batch << " " << input_height << " " << input_width << " " << input_channel \
   << " Output " << input_batch << " " << grad_height << " " << grad_width << " " << grad_channel << endl;
    #endif
+   
+//auto const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
+  //auto const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
+   //loop1D(i,input_height){
     ConvamFilterGradKernelLauncher(
             context->eigen_device<GPUDevice>(),
       in_data,
-      grad,
+      grad,//i*oneoutputsize,
       im2col_data,
       input_height,
       input_width,
@@ -1231,7 +1282,7 @@ public:
       filter_width,
       filter_height,
       out
-    );
+    );//}
 
   }
   private:
@@ -1488,7 +1539,6 @@ void ConvamInputGradKernelLauncher(
       // im2col input
       const GPUDevice &d,
       const float* grad,
-      float* holed_grad,
       float* im2col,
       const int real_grad_height,
       const int real_grad_width,
@@ -1631,10 +1681,6 @@ class ConvamInputGradOpGPU : public OpKernel {
     const int back_pad_bottom = input_height - (grad_height-1)*stride_rows-2-back_pad_top+filter_height;
     const int back_pad_right = input_width - (grad_width-1)*stride_cols-2-back_pad_left+filter_width;
     // std::cout << "back_pad_top " << back_pad_top << "back_pad_left " <<back_pad_left << "back_pad_bottom " << back_pad_bottom<< "back_pad_right " << back_pad_right<< "\n";
-    Tensor holed_grad;
-    OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
-    TensorShape({hole_grad_height*hole_grad_width*output_channel*grad_batch})
-    , &holed_grad));
 
     Tensor im2col;
     OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
@@ -1647,7 +1693,6 @@ class ConvamInputGradOpGPU : public OpKernel {
     auto grad = out_backprop.flat<float>().data();
     auto in_data = filter.flat<float>().data();
     auto out = in_backprop->template flat<float>().data();
-    auto holed_grad_data = holed_grad.flat<float>().data();
     auto im2_col_data = im2col.flat<float>().data();
     auto rsfilter_data = rsfilter.flat<float>().data();
     double end = realtime();
@@ -1657,12 +1702,15 @@ class ConvamInputGradOpGPU : public OpKernel {
      cout << "Backpropinput shape: Output " << input_batch << " " << hole_grad_height << " " << hole_grad_width << " " << output_channel \
   << " filter " << filter_height<< " " << filter_width << " " << input_channel << " " << output_channel << endl;
      #endif
+
+  auto const oneinputsize = input_height*input_width*input_channel; 
+  auto const oneoutputsize = grad_height*grad_width*output_channel; 
+     loop1D(i,input_batch){
     ConvamInputGradKernelLauncher(
         // grad needs pading and holes
         // im2col input
-        ctx->eigen_device<GPUDevice>(),
-        grad,
-        holed_grad_data,
+        context->eigen_device<GPUDevice>(),
+        grad+i*oneoutputsize,
         im2_col_data,
         grad_height,
 
@@ -1682,12 +1730,12 @@ class ConvamInputGradOpGPU : public OpKernel {
         stride_rows,
         stride_cols,
         // input related
-        input_batch,
+        1,//input_batch,
         input_height,
         input_width,
         input_channel,
-        out
-    );
+        out+i*oneinputsize
+         );}
 
   }
 
