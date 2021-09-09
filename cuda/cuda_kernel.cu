@@ -414,7 +414,11 @@ __global__ void im2col_improved_inputgrad(const float *in,
 		if(inH >= 0 && inW >= 0 && inH < h && inW < w) { 
 			if (inH%sh == 0 && inW%sw == 0)
 			{
-				out[tId] = in[((outB * (h/sh) + inH/sh) * (w/sw) + inW/sw) * c + offsetC];
+                unsigned orign_h = (h-1)/sh+1;
+                unsigned orign_w = (w-1)/sw+1;
+                unsigned orign_h_idx = inH/sh;
+                unsigned orign_w_idx = inW/sw;
+				out[tId] = in[((outB * (orign_h) + orign_h_idx) * (orign_w) + orign_w_idx) * c + offsetC];
 				// printf("tID %d %d %d %d %d %d %d %d %d %d\n",outB , h ,inH,sh ,w ,inW,sw ,c ,offsetC,((outB * h + inH/sh) * w + inW/sw) * c + offsetC);
 			} else
 			{

@@ -29,7 +29,6 @@ from tensorflow.python.ops import variables as variables_lib
 # pylint: disable=wildcard-import
 from tensorflow.python.ops.gen_nn_ops import *
 # pylint: enable=wildcard-import
-from tensorflow.python.platform import device_context
 from tensorflow.python.util import deprecation
 from tensorflow.python.util import dispatch
 from tensorflow.python.util.compat import collections_abc
@@ -193,7 +192,7 @@ def amconvolution_internal(
     else:
         raise ValueError("Dilation is not supported in current implementation")
 
-@tf_export("nn.convolution", v1=[])
+@tf_export("nn.amconvolution", v1=[])
 @dispatch.add_dispatch_support
 def amconvolution_v2(  # pylint: disable=missing-docstring
     input,  # pylint: disable=redefined-builtin

@@ -665,8 +665,8 @@ public:
     auto f_input_data = input.flat<float>().data();
     auto f_filter_data = filter.flat<float>().data();
 
-    int filter_left_offset;
-    int filter_top_offset;
+    int64 filter_left_offset;
+    int64 filter_top_offset;
     if (params_.padding == 1) {
       filter_left_offset =
           ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols+1) / 2;
@@ -693,11 +693,11 @@ public:
   << " Filter " << dimensions.filter_rows << " " << dimensions.filter_cols << " " << dimensions.in_depth << " " << dimensions.out_depth << endl;
   #endif
  //simple tiling 
-  auto const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
-  auto const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
+  int64 const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
+  int64 const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
   if( dimensions.filter_cols == 1 && dimensions.filter_rows == 1 && dimensions.stride_rows == 1 && dimensions.stride_cols){
     size_t const block_size = 16;
-    auto const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
+    size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
     if (dimensions.batch <= max_batch) {
         Tensor im2col;
         OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
@@ -781,10 +781,10 @@ public:
 
   }else {
     size_t const block_size = 16;
-    auto const max_batch = (65536*block_size + 1 - block_size)/(dimensions.out_rows*dimensions.out_cols);
+    size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.out_rows*dimensions.out_cols);
     if (dimensions.batch <= max_batch) {
         Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.out_cols*dimensions.out_rows, dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols}), &im2col));
         auto im2col_data = im2col.flat<float>().data();
        ConvamKernellLauncher(
          context->eigen_device<GPUDevice>(),
@@ -1764,7 +1764,7 @@ class ConvamInputGradOpGPU : public OpKernel {
     auto const oneinputsize = input_height*input_width*input_channel; 
     auto const oneoutputsize = grad_height*grad_width*output_channel; 
     size_t const block_size = 16;
-    auto const max_batch = (65536*block_size + 1 - block_size)/(input_height*input_width);
+    size_t const max_batch = (65536*block_size + 1 - block_size)/(input_height*input_width);
     if (input_batch <= max_batch) {
         Tensor im2col;
         OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 

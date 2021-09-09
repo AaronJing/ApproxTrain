@@ -49,7 +49,7 @@ from tensorflow.python.ops import sparse_ops
 
 
 
-class Conv(Layer):
+class AMConv(Layer):
   """Abstract N-D convolution layer (private, used as implementation base).
 
   This layer creates a convolution kernel that is convolved
@@ -133,7 +133,7 @@ class Conv(Layer):
                name=None,
                conv_op=None,
                **kwargs):
-    super(Conv, self).__init__(
+    super(AMConv, self).__init__(
         trainable=trainable,
         name=name,
         activity_regularizer=regularizers.get(activity_regularizer),
@@ -348,7 +348,7 @@ class Conv(Layer):
         'bias_constraint':
             constraints.serialize(self.bias_constraint)
     }
-    base_config = super(Conv, self).get_config()
+    base_config = super(AMConv, self).get_config()
     return dict(list(base_config.items()) + list(config.items()))
 
   def _compute_causal_padding(self, inputs):
@@ -388,7 +388,7 @@ class Conv(Layer):
 
 
 @keras_export('keras.layers.AMConv2D', 'keras.layers.AMConvolution2D')
-class AMConv2D(Conv):
+class AMConv2D(AMConv):
   """2D convolution layer (e.g. spatial convolution over images).
 
   This layer creates a convolution kernel that is convolved
