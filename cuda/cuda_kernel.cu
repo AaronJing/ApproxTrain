@@ -22,19 +22,6 @@ static inline double realtime(void) {
     return tp.tv_sec + tp.tv_usec * 1e-6;
 }
 
-__device__ float halfmul(const float a, const float b){
-      half A = __float2half(a);
-      half B = __float2half(b);
-      half C;
-  #if __CUDA_ARCH__ >= 530
-      C = __hmul(A, B);
-  #else
-      C = __float2half(__half2float(A)*__half2float(B));
-  #endif
-      float c = __half2float(C);
-
-    return c;
-}
 
 __device__ float bitmasking(float num){
 	int mask = 0xffff0000;
@@ -48,7 +35,7 @@ __device__ float bitmasking(float num){
 //===============================IM2COL KERNEL=================================
 //=============================================================================
 /*po patch offset, pc patch count*/
-__global__ void im2col_improved(const float *in,
+__global__ void im2col(const float *in,
     int c, int w, int h, int ow, int oh,
     int kw, int kh, int pw, int ph, int sw, int sh,
     int dw, int dh, int po, int pc, float *out)
@@ -81,7 +68,7 @@ for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += bl
 //=============================================================================
 //=============================================================================
 //=============================================================================
-void im2colLauncher_Improved(
+void im2colLauncher(
     const GPUDevice &d,
     const float* im,
     const int batch,
@@ -106,7 +93,7 @@ void im2colLauncher_Improved(
     unsigned pl = filter_row * filter_col * in_depth;
     unsigned blockSize = 256;
     unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
-    im2col_improved<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
+    im2col<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -115,7 +102,7 @@ void im2colLauncher_Improved(
 // //=============================================================================
 // //===============================IM2COL KERNEL=================================
 
-__global__ void im2col_improved_filtergrad(const float *in, int batch,
+__global__ void im2col_filtergrad(const float *in, int batch,
     int c, int w, int h, int ow, int oh,
     int kw, int kh, int pw, int ph, int sw, int sh,
     int dw, int dh, int po, int pc, float *out)
@@ -148,7 +135,7 @@ for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += bl
 //=============================================================================
 //=============================================================================
 //=============================================================================
-void im2colLauncher_Improved_filtergrad(
+void im2colLauncher_filtergrad(
     const GPUDevice &d,
     const float* im,
     const int batch,
@@ -174,42 +161,11 @@ void im2colLauncher_Improved_filtergrad(
     unsigned blockSize = 256;
     unsigned gridSize  = (filter_row * pl + blockSize - 1) / blockSize;
 
-    im2col_improved_filtergrad<<<gridSize,blockSize,0,d.stream()>>>(im, batch, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,filter_row*filter_col*in_depth,data_col);
+    im2col_filtergrad<<<gridSize,blockSize,0,d.stream()>>>(im, batch, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,filter_row*filter_col*in_depth,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
 }
-
-
-
-
-void gemm_reference( size_t m, size_t n,
-    size_t k, const float* a, size_t lda, const float* b, size_t ldb,
-    float* c, size_t ldc){
-    const size_t a_i_stride = lda; 
-    const size_t b_l_stride = ldb; 
-    const size_t c_i_stride = ldc; 
-    size_t i, j, l;
-    // loop output depth
-    for (j = 0; j < n; j++) {
-      //loop patch
-      for (i = 0; i < m; i++) {
-        float total(0);
-        //loop filter_value_count
-        for (l = 0; l < k; l++) {
-          const size_t a_index = ((i * a_i_stride) + l );
-          const float a_value = a[a_index];
-          // filte
-          const size_t b_index = (j  + (l * b_l_stride));
-          const float b_value = b[b_index];
-          total += (a_value * b_value);
-        }
-        const size_t c_index = ((i * c_i_stride) + j );
-        c[c_index] = total;
-      }
-    }
-  }
-
 
 void ConvamKernellLauncher(
         const GPUDevice &d,
@@ -279,7 +235,7 @@ double end = realtime();
       return;
     }
     double begin = realtime();
-   im2colLauncher_Improved(d,inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 ,im2col);
+   im2colLauncher(d,inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 ,im2col);
    cudaDeviceSynchronize();
    double end = realtime();
 #ifdef PROFILE
@@ -303,37 +259,8 @@ cout << "Forward Im2col time difference = " << end - begin << endl;
     cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
 #endif
 
-
   }
 
-void Im2col(const float* input_data, const int depth, const int height,
-    const int width, const int filter_h, const int filter_w,
-    const int pad_t, const int pad_l, const int pad_b, const int pad_r,
-    const int stride_h, const int stride_w, float* col_data) {
-    int height_col = 3;
-    int width_col = 3;
-
-    int h_pad = -pad_t;
-    for (int h = 0; h < height_col; ++h) {
-        int w_pad = -pad_l;
-            for (int w = 0; w < width_col; ++w) {
-                for (int ih = h_pad; ih < h_pad + filter_h; ++ih) {
-                    for (int iw = w_pad; iw < w_pad + filter_w; ++iw) {
-                    if (ih >= 0 && ih < height && iw >= 0 && iw < width) {
-                        memcpy(col_data, input_data + (ih * width + iw) * depth,
-                            sizeof(float) * depth);
-                    } else {
-                        // This should be simply padded with zero.
-                        memset(col_data, 0, sizeof(float) * depth);
-                    }
-                col_data += depth;
-                }
-            }
-        w_pad += stride_w;
-        }
-        h_pad += stride_h;
-    }
-}
 
 
 
@@ -359,7 +286,7 @@ void ConvamFilterGradKernelLauncher(
 ){
 
     double begin = realtime();
-    im2colLauncher_Improved_filtergrad(d,input,batch,input_height,input_width,grad_height,grad_width,grad_channel,in_depth,filter_height,filter_width,stride_row,stride_col,\
+    im2colLauncher_filtergrad(d,input,batch,input_height,input_width,grad_height,grad_width,grad_channel,in_depth,filter_height,filter_width,stride_row,stride_col,\
     filter_left_offset,filter_top_offset,1,1,im2col);
     double end = realtime();
 #ifdef PROFILE
@@ -389,7 +316,7 @@ void ConvamFilterGradKernelLauncher(
 
 
 
-__global__ void im2col_improved_inputgrad(const float *in,
+__global__ void im2col_inputgrad(const float *in,
     int c, int w, int h, int ow, int oh,
     int kw, int kh, int pw, int ph, int sw, int sh,
     int dw, int dh, int po, int pc, float *out)
@@ -419,7 +346,6 @@ __global__ void im2col_improved_inputgrad(const float *in,
                 unsigned orign_h_idx = inH/sh;
                 unsigned orign_w_idx = inW/sw;
 				out[tId] = in[((outB * (orign_h) + orign_h_idx) * (orign_w) + orign_w_idx) * c + offsetC];
-				// printf("tID %d %d %d %d %d %d %d %d %d %d\n",outB , h ,inH,sh ,w ,inW,sw ,c ,offsetC,((outB * h + inH/sh) * w + inW/sw) * c + offsetC);
 			} else
 			{
 				out[tId] = float(0);
@@ -433,7 +359,7 @@ __global__ void im2col_improved_inputgrad(const float *in,
 	}
 
 }
-void im2colLauncher_Improved_inputgrad(
+void im2colLauncher_inputgrad(
     const GPUDevice &d,
     const float* im,
     const int batch,
@@ -458,7 +384,7 @@ void im2colLauncher_Improved_inputgrad(
     unsigned pl = filter_row * filter_col * in_depth;
     unsigned blockSize = 256;
     unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
-    im2col_improved_inputgrad<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
+    im2col_inputgrad<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -496,39 +422,10 @@ void ConvamInputGradKernelLauncher(
 ){
 
     double begin1 = realtime();
-//     if(hole_grad_height!=real_grad_height||hole_grad_width!=real_grad_width){
-//         // float holed[input_batch*hole_grad_width*hole_grad_height*output_channel];
-// 		// std::cout << "ok" << std::endl;
-//         const int holed_size = hole_grad_width*hole_grad_height*output_channel;
-//         const int real_size = output_channel*real_grad_height*real_grad_width;
-//         dim3 dim_grid(ceil((float)holed_size/BLOCK_SIZE),input_batch);
-//         inserthole<<<dim_grid,BLOCK_SIZE>>>( grad, real_grad_height, real_grad_width, output_channel, hole_grad_height, hole_grad_width, holed_size,
-//             stride_rows, stride_cols, real_size, holed_grad);
-
-//             gpuErrchk( cudaPeekAtLastError() );
-//             gpuErrchk( cudaDeviceSynchronize() );
-//        im2colLauncher_Improved(
-//         holed_grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
-//         filter_width,1,1,back_pad_left,back_pad_top,1,1,im2col);
-//    } else {
-    im2colLauncher_Improved_inputgrad(
+    im2colLauncher_inputgrad(
         d,grad, input_batch, hole_grad_height, hole_grad_width, input_height, input_width,input_channel,output_channel,filter_height,
         filter_width,stride_rows,stride_cols,back_pad_left,back_pad_top,1,1,im2col);
-    // }
     double end1 = realtime();
-	// float temp1[output_channel*filter_width*filter_height*input_height*input_width*input_batch];
-	// cudaMemcpy(temp1,grad,sizeof(float)*output_channel*real_grad_height*real_grad_width*input_batch,cudaMemcpyDeviceToHost);
-	// for (size_t i = 0; i < output_channel*real_grad_height*real_grad_width*input_batch; i++)
-	// {
-	// 	printf("%f\n",temp1[i]);
-	// }
-	// float temp[output_channel*filter_width*filter_height*input_height*input_width*input_batch];
-	// cudaMemcpy(temp,im2col,sizeof(float)*output_channel*filter_width*filter_height*input_height*input_width*input_batch,cudaMemcpyDeviceToHost);
-	// for (size_t i = 0; i < output_channel*filter_width*filter_height*input_height*input_width*input_batch; i++)
-	// {
-	// 	printf("%f\n",temp[i]);
-	// }
-	
 #ifdef PROFILE
     cout << "Error backpropagation: Im2Col time difference = " << end1 - begin1 << endl;
 #endif
