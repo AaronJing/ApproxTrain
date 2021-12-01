@@ -511,13 +511,17 @@ void ConvamInputGradKernelLauncher(
         const GPUDevice &d,
     const float* grad,
     float* im2col,
+    //unused
     const int real_grad_height,
+    //unused
     const int real_grad_width,
     const int hole_grad_width,
     const int hole_grad_height,
     const int back_pad_top,
     const int back_pad_left,
+    //unused
     const int back_pad_bottom,
+    //unused
     const int back_pad_right,
     const float* filter,
     //reverse and swap dimension 2 and 3 of the filters.s

@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
-__global__ void reverseNswapdim23(size_t height, size_t width, size_t n_channels, size_t n_filters, float* dest, const float* src ){
+template <typename T>
+__global__ void reverseNswapdim23(size_t height, size_t width, size_t n_channels, size_t n_filters, T* dest, const T* src ){
     size_t pixel_index = blockIdx.x * blockDim.x + threadIdx.x;
     size_t filter_index = blockIdx.y * blockDim.y + threadIdx.y;
     size_t num_pixels = height*width;
