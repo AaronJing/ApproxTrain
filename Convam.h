@@ -12,7 +12,7 @@ struct ConvamFunctor {
             const int filter_left_offset, const int filter_top_offset,
             const int filter_rows, const int filter_cols, const int in_depth,
             const int input_cols, const int input_rows, const T* filter,
-            const T* im2col
+            T* im2col, const int padding
           ); 
 };
 
@@ -26,7 +26,7 @@ struct ConvamFunctor<Eigen::GpuDevice, T> {
             const int filter_left_offset, const int filter_top_offset,
             const int filter_rows, const int filter_cols, const int in_depth,
             const int input_cols, const int input_rows, const T* filter,
-            const T* im2col
+            T* im2col, const int padding
           ); 
 };
 #endif

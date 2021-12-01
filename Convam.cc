@@ -1,4 +1,14 @@
 #include "Convam.h"
+REGISTER_OP("Convam")
+    .Input("input: T")
+    .Input("filter: T")
+    .Output("output: T")
+    .Attr("T: {float, int32}")
+    .Attr("strides: list(int)")
+    .Attr("dilations: list(int) = [1, 1, 1, 1]")
+    .Attr(GetPaddingAttrString())
+    .Attr(GetConvnetDataFormatAttrString())
+    .SetShapeFn(::tensorflow::shape_inference::Conv2DShape);
 // cpu specilisation
 template <typename T>
 struct ConvamFunctor<CPUDevice, T> {
@@ -52,6 +62,100 @@ struct ConvamFunctor<CPUDevice, T> {
       }
     }
   }
+};
+template <typename Device, typename T>
+class ConvamOpCPU : public OpKernel{
+public:
+  explicit ConvamOpCPU(OpKernelConstruction* context) : OpKernel(context) {
+    OP_REQUIRES_OK(context, InitConv2DParameters(context, &params_));
+  }
+  void Compute(OpKernelContext* context) override {
+    //  grab input
+    const Tensor& input = context->input(0);
+    const Tensor& filter = context->input(1);
+    // calculate parameters
+    Conv2DDimensions dimensions;
+    OP_REQUIRES_OK(context,
+                   ComputeConv2DDimension(params_, input, filter, &dimensions));
+    // get output shape
+    TensorShape out_shape = ShapeFromFormat(
+        params_.data_format, dimensions.batch, dimensions.out_rows,
+        dimensions.out_cols, dimensions.out_depth);
+    // allocate output tensor
+    Tensor* output = nullptr;
+    OP_REQUIRES_OK(context, context->allocate_output(0, out_shape, &output));
+    // allocate im2col tensor for gpu
+    Tensor im2col;
+    int64 const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
+    int64 const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
+    if(dimensions.filter_cols == 1 && dimensions.filter_rows == 1 && 
+            dimensions.stride_rows == 1 && dimensions.stride_cols){
+        size_t const block_size = 16;
+        size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
+        if (dimensions.batch <= max_batch) {
+            OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        } else {
+            OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        } 
+    } else if(dimensions.filter_rows == dimensions.input_rows && dimensions.filter_cols == dimensions.input_cols&& params_.padding == 1){
+        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+    } else {
+        size_t const block_size = 16;
+        size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.out_rows*dimensions.out_cols);
+        if (dimensions.batch <= max_batch) {
+            OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.out_cols*dimensions.out_rows, dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols}), &im2col));
+        } else {
+            OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        }
+    }
+    auto output_data = output->flat<T>().data();
+    auto input_data = input.flat<T>().data();
+    auto filter_data = filter.flat<T>().data();
+    auto im2col_data = im2col.flat<T>().data();
+    // Calculate filter offset
+    int filter_left_offset;
+    int filter_top_offset;
+    // VALID Padding
+    if (params_.padding == 1) {
+      filter_left_offset =
+          ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols+1) / 2;
+      filter_top_offset = ((dimensions.out_rows - 1) * dimensions.stride_rows + dimensions.filter_rows - dimensions.input_rows+1) /
+          2;
+      filter_left_offset = filter_left_offset>0?filter_left_offset:0;
+      filter_top_offset = filter_top_offset>0?filter_top_offset:0;
+    } else {
+      filter_left_offset =
+          ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols) / 2;
+      filter_left_offset = filter_left_offset>0?filter_left_offset:0;
+      filter_top_offset =
+          ((dimensions.out_rows - 1) * dimensions.stride_rows + dimensions.filter_rows - dimensions.input_rows) /
+          2;
+      filter_top_offset = filter_top_offset>0?filter_top_offset:0;
+    }
+    ConvamFunctor<Device, T>()(
+            context->eigen_device<Device>(),
+            input_data,
+            output_data,
+            dimensions.batch,
+            dimensions.out_rows,
+            dimesnions.out_cols,
+            dimensions.out_depth,
+            dimensions.stride_cols,
+            dimensions.stride_rows,
+            filter_left_offset,
+            filter_top_offset,
+            dimensions.filter_rows,
+            dimensions.filter_cols,
+            dimensions.in_depth,
+            dimensions.input_cols,
+            dimensions.input_rows,
+            filter_data,
+            im2col_data
+            );
+  }
+  private:
+    Conv2DParameters params_;
+  TF_DISALLOW_COPY_AND_ASSIGN(ConvamOpCPU);
 };
 // For forwardpropagation
 // Register the CPU kernels.
