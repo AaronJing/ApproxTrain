@@ -34,16 +34,14 @@ __device__ float bitmasking(float num){
 //=============================================================================
 //===============================IM2COL KERNEL=================================
 //=============================================================================
-/*po patch offset, pc patch count*/
-__global__ void im2col(const float *in,
-    int c, int w, int h, int ow, int oh,
-    int kw, int kh, int pw, int ph, int sw, int sh,
-    int dw, int dh, int po, int pc, float *out)
-{
-//pc = ow * oh * batch aka m dimension
-unsigned pl = kw * kh * c;
-for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += blockDim.x * gridDim.x)
-{
+template <typename T>
+__global__ void im2col(const T* in,int c, int w, int h, int ow, int oh, 
+        int kw, int kh, int pw, int ph, int sw, int sh, int dw, int dh, int po, 
+        int pc, T* out
+        ) {
+    unsigned pl = kw * kh * c;
+    for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; 
+            tId < pc*pl; tId += blockDim.x * gridDim.x) {
     unsigned patchId = (tId + po*pl) / pl;
     unsigned outB    = (patchId / ow) / oh;
     unsigned outH    = (patchId / ow) % oh;
@@ -60,17 +58,16 @@ for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; tId < pc*pl; tId += bl
     if(inH >= 0 && inW >= 0 && inH < h && inW < w)
         out[tId] = in[((outB * h + inH) * w + inW) * c + offsetC];
     else
-        out[tId] = float(0);
-
-}
-
+        out[tId] = T(0);
+    }
 }
 //=============================================================================
 //=============================================================================
 //=============================================================================
+template <typename T>
 void im2colLauncher(
     const GPUDevice &d,
-    const float* im,
+    const T* im,
     const int batch,
     const int in_row,
     const int in_col,
@@ -87,13 +84,13 @@ void im2colLauncher(
     const int top_offset,
     const int dw,
     const int dh,
-    float* data_col)
+    T* data_col)
 {
 
     unsigned pl = filter_row * filter_col * in_depth;
     unsigned blockSize = 256;
     unsigned gridSize  = (batch * pl + blockSize - 1) / blockSize;
-    im2col<<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
+    im2col<T><<<gridSize,blockSize,0,d.stream()>>>(im, in_depth, in_col, in_row, out_col, out_row, filter_col, filter_row,  left_offset,top_offset, stride_col, stride_row,dw,dh,0,batch*out_row*out_col,data_col);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -166,6 +163,86 @@ void im2colLauncher_filtergrad(
     gpuErrchk( cudaDeviceSynchronize() );
 
 }
+// Define the GPU implementation that launches the CUDA kernel.
+template <typename T>
+void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d, 
+        const T* input_data, T* output_data, const int batch, 
+        const int out_rows, const out_cols, const int out_depth, 
+        const int stride_cols, const int stride_rows, 
+        const int filter_left_offset, const int filter_top_offset,
+        const int filter_rows, const int filter_cols, const int in_depth,
+        const int input_cols, const int input_rows, const T* filter,
+        const T* im2col
+        ) {
+
+    if (filter_rows == 1 && filter_cols == 1 && stride_rows == 1 &&
+        stride_cols == 1) {
+      // The kernel is 1x1.
+      const int m = batch * input_rows * input_cols;
+      const int n = out_depth;
+      const int k = in_depth;
+      const int lda = k;
+      const int ldb = n;
+      const int ldc = n;
+      const int size = m*n;
+      dim3 blockSize(16, 16, 1);
+      dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
+      double begin = realtime();
+      gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,input_data,lda,filter,ldb,output_data,ldc);
+      gpuErrchk( cudaPeekAtLastError() );
+      gpuErrchk( cudaDeviceSynchronize() );
+      double end = realtime();
+#ifdef PROFILE
+    cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
+#endif
+      return;
+    } else if (filter_rows == input_rows && filter_cols== input_cols &&
+               padding == 1) {
+      // The input data and filter have the same height/width.
+      const int m = batch;
+      const int n = out_depth;
+      const int k = in_depth*input_cols*input_rows;
+      const int lda = k;
+      const int ldb = out_depth;
+      const int ldc = out_depth;
+      const int size = m*n;
+      dim3 blockSize(16, 16, 1);
+      dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
+      double begin = realtime();
+      gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,input_data,lda,filter,ldb,output_data,ldc);
+      gpuErrchk( cudaPeekAtLastError() );
+      gpuErrchk( cudaDeviceSynchronize() );
+      double end = realtime();
+#ifdef PROFILE
+    cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
+#endif
+      return;
+    }
+    double begin = realtime();
+    im2colLauncher<T>(d,input_data, batch, input_rows, input_cols, out_rows, out_cols,out_depth, in_depth, filter_rows, filter_cols, stride_rows, stride_cols, filter_left_offset,filter_top_offset, 1,1 ,im2col);
+    double end = realtime();
+#ifdef PROFILE
+    cout << "Forward Im2col time difference = " << end - begin << endl;
+#endif
+    const size_t m = batch*out_rows*out_cols; 
+    const size_t n = out_depth; 
+    const size_t k = filter_cols * filter_rows * in_depth; 
+    const size_t lda = k; 
+    const size_t ldb = out_depth;
+    const size_t ldc = out_depth;
+    dim3 blockSize(16, 16, 1);
+    dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
+    begin = realtime();
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,filter,ldb,output_data,ldc);
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+    end = realtime();
+#ifdef PROFILE
+    cout << "Forward gemm time difference = " << end - begin << " and shape: " << m << " " << n << " " << k <<endl;
+#endif
+} 
+
+
 
 void ConvamKernellLauncher(
         const GPUDevice &d,

@@ -7,7 +7,8 @@ struct ConvamFunctor<CPUDevice, T> {
             const int out_depth, const int stride_cols, const int stride_rows,
             const int filter_left_offset, const int filter_top_offset,
             const int filter_rows, const int filter_cols, const int in_depth,
-            const int input_cols, const int input_rows
+            const int input_cols, const int input_rows, const T* filter,
+            const T* im2col
           ) {
     
     for (int batch_ = 0; batch_ < batch; ++batch_) {
