@@ -518,33 +518,10 @@ public:
       //             filter_top_offset,(int)dimensions.out_cols,dimensions.stride_rows,dimensions.filter_cols,dimensions.input_cols);
     }
     
-    // If we've got multiple images in our input, work through each of them.
     for (int batch = 0; batch < dimensions.batch; ++batch) {
-      // Walk through all the output image values, sliding the filter to
-      // different positions in the input.
       for (int out_y = 0; out_y < dimensions.out_rows; ++out_y) {
         for (int out_x = 0; out_x < dimensions.out_cols; ++out_x) {
-          // Each filter kernel produces one output channel.
           for (int out_channel = 0; out_channel < dimensions.out_depth; ++out_channel) {
-            // We're going to calculate a single output value, which means we
-            // need to multiply a three dimensional kernel of weights against
-            // the current location within the input image.
-            /*
-             *-------------------------------...
-             |\ ^
-             | \in_depth
-             |  \ v
-             |   *-------------------------------...
-             |   |            ^
-             |   |       in_y_origin
-             |   |            v   \
-             |   |<in_x_origin>*---*^
-             |   |            \|   |dimensions.filter_cols
-             .   |             *---*v
-             .   |             <--->
-             .         dimensions.filter_rows
-             .
-            */
             const int in_x_origin = (out_x * dimensions.stride_cols) - filter_left_offset;
             const int in_y_origin = (out_y * dimensions.stride_rows) - filter_top_offset;
             float total(0);
@@ -554,11 +531,7 @@ public:
                      ++in_channel) {
                   const int in_x = in_x_origin + filter_x;
                   const int in_y = in_y_origin + filter_y;
-                  // printf("%d in_x forward\n",in_x);
-                  // printf("%d in_y\n",in_y);
                   float input_value;
-                  // If the location is outside the bounds of the input image,
-                  // use zero as a default value.
                   if ((in_x >= 0) && (in_x < dimensions.input_cols) && (in_y >= 0) &&
                       (in_y < dimensions.input_rows)) {
                     input_value =
@@ -578,8 +551,6 @@ public:
                 }
               }
             } 
-           // printf("\n\n\n");
-          //  printf("%f\n",total);
             output_data[(batch * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
                         (out_y * dimensions.out_cols * dimensions.out_depth) +
                         (out_x * dimensions.out_depth) + out_channel] = total;
@@ -587,27 +558,6 @@ public:
         }
       }
     }
-    // std::fstream fs;
-    // fs.open("cpu_log", std::fstream::in | std::fstream::out | std::fstream::app);
-    // // ----------test for forward propagation-----------
-    // for(int i = 0; i < dimensions.batch; i++){
-    //   for(int j = 0; j < dimensions.out_rows; j++){
-    //     for(int k = 0; k < dimensions.out_cols; k++){
-    //       for(int l = 0; l < dimensions.out_depth; l++){
-    //           // printf("(%d, %d, %d, %d) %f\n",i,j,k,l,output_data[(i * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
-    //           //           (j * dimensions.out_cols * dimensions.out_depth) +
-    //           //           (k * dimensions.out_depth) + l]);
-    //           fs << i <<", " << j << ", " <<k<<", " << l << ",  " << output_data[(i * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
-    //                     (j * dimensions.out_cols * dimensions.out_depth) +
-    //                     (k * dimensions.out_depth) + l]<<"\n";
-              
-    //       }
-    //     }
-    //   }
-    // }
-    // // printf("From CPU\n");
-    // fs << "From CPU\n";
-    // fs.close();
   }
   
   private:
