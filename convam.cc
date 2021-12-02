@@ -1727,14 +1727,17 @@ class ConvamInputGradOpGPU : public OpKernel {
             context->eigen_device<GPUDevice>(),
             grad,
             im2_col_data,
+            //unused
             grad_height,
-
+            //unused
             grad_width,
             hole_grad_width,
             hole_grad_height,
             back_pad_top,
             back_pad_left,
+            //unused
             back_pad_bottom,
+            //unused
             back_pad_right,
             // reverse
             in_data,

@@ -61,7 +61,7 @@ struct ConvamInputGradFunctor<Eigen::GpuDevice, T> {
           const int filter_rows, const int filter_cols, const int out_depth,
           const int stride_rows, const int stride_cols, const int batch,
           const int input_rows, const int input_cols, const int in_depth,
-          T* output
+          T* output, const int out_rows, const int out_cols
           ); 
 };
 template <typename T>

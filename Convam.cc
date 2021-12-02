@@ -269,7 +269,7 @@ struct ConvamInputGradFunctor<CPUDevice, T> {
           const int filter_rows, const int filter_cols, const int out_depth,
           const int stride_rows, const int stride_cols, const int batch,
           const int input_rows, const int input_cols, const int in_depth,
-          T* output
+          T* output, const int out_rows, const int out_cols
           ){
     for (int ibatch = 0; ibatch < batch; ++ibatch) {
         for (int out_y = 0; out_y < input_rows; ++out_y) {
