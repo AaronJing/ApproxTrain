@@ -578,7 +578,7 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
     size_t const max_batch = (65536*block_size + 1 - block_size)/
         (input_rows*input_cols);
     if (batch <= max_batch) {
-        ConvamInputGradKernelLauncher(
+        ConvamInputGradKernelLauncher<T>(
                 d, 
                 grad, 
                 im2col, 
@@ -602,7 +602,7 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
     } else {
         loop1Da(i, batch, max_batch){
             size_t const ibatch =  batch - 1 - i >= max_batch ? max_batch : batch - i;
-            ConvamInputGradKernelLauncher(
+            ConvamInputGradKernelLauncher<T>(
                      d, 
                      grad + i*oneoutputsize, 
                      im2col, 
