@@ -11,10 +11,12 @@
 #include "error.cuh"
 #include "gemm.cuh"
 #include "reverseNswapdim23.cuh"
+#include "../Convam.h"
 //using namespace std;
 #define THREADS_PER_BLOCK 1024
 #define BLOCK_SIZE 1024
 using GPUDevice = Eigen::GpuDevice;
+using CPUDevice = Eigen::ThreadPoolDevice;
 static inline double realtime(void) {
     struct timeval tp;
     struct timezone tzp;
@@ -173,7 +175,7 @@ void ConvamKernelLauncher(
 template <typename T>
 void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d, 
         const T* input_data, T* output_data, const int batch, 
-        const int out_rows, const out_cols, const int out_depth, 
+        const int out_rows, const int out_cols, const int out_depth, 
         const int stride_cols, const int stride_rows, 
         const int filter_left_offset, const int filter_top_offset,
         const int filter_rows, const int filter_cols, const int in_depth,
@@ -182,8 +184,8 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
         ) {
     // this is a very primitive tiling function. I mean VERY.
     //TODO Simplify the cases
-    int64 const oneinputsize = input_rows * input_cols * in_depth;
-    int64 const oneoutputsize = out_rows* out_cols * out_depth;
+    int const oneinputsize = input_rows * input_cols * in_depth;
+    int const oneoutputsize = out_rows* out_cols * out_depth;
     if(filter_cols == 1 && filter_rows == 1 && 
             stride_rows == 1 && stride_cols){
         size_t const block_size = 16;
@@ -234,7 +236,7 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     );
             }
         } 
-    } else if(filter_rows == input_rows && filter_cols == input_cols&& params_.padding == 1){
+    } else if(filter_rows == input_rows && filter_cols == input_cols&& padding == 1){
             ConvamKernelLauncher<T>(d,
                     input_data,
                     filter,

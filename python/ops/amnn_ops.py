@@ -37,7 +37,7 @@ from tensorflow.python.util.deprecation import deprecated_argument_lookup
 
 from tensorflow.python.util.tf_export import tf_export
 import tensorflow as tf
-convam_module = tf.load_op_library('/scratch/ka88/jg7534/tmp/AMTensorflow/AMDNN/convam_gpu.so')
+convam_module = tf.load_op_library('/home/jing/AMDNN/convam_gpu.so')
 
 _CHANNELS_LAST_FORMATS = frozenset({
     "NWC", "NHC", "NHWC", "NWHC", "NDHWC", "NDWHC", "NHDWC", "NHWDC", "NWDHC",
@@ -213,6 +213,7 @@ def amconvolution_v2(  # pylint: disable=missing-docstring
 
 @ops.RegisterGradient("Convam")
 def _convam_grad_cc(op,grad):
+  DT = op.get_attr("T")
   dilations = op.get_attr("dilations")
   strides = op.get_attr("strides")
   padding = op.get_attr("padding")

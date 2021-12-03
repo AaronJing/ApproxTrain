@@ -14,6 +14,9 @@
 # ==============================================================================
 """Keras convolution layers and image transformation layers."""
 
+import sys
+from...ops.amnn_ops import amconvolution_v2
+#from AMDNN.python.ops.amnn_ops import amconvolution_v2
 import functools
 
 from tensorflow.python.eager import context
@@ -39,7 +42,6 @@ from tensorflow.python.keras.utils import tf_utils
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import nn
 from tensorflow.python.ops import nn_ops
-from AMDNN.python.ops.amnn_ops import amconvolution_v2
 from tensorflow.python.util.tf_export import keras_export
 # pylint: disable=g-classes-have-attributes
 import tensorflow as tf
