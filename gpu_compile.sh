@@ -16,5 +16,5 @@ $NVCC -std=c++11 -O2 -c -o gemm.cu.o cuda/gemm.cu \
   ${TF_CFLAGS[@]} -DGOOGLE_CUDA=1 $MULTIPLIER  -x cu -Xcompiler -fPIC
 $NVCC -std=c++11 -O2 -c -o reverseNswapdim23.cu.o cuda/reverseNswapdim23.cu \
   ${TF_CFLAGS[@]} -DGOOGLE_CUDA=1 $MULTIPLIER  -x cu -Xcompiler -fPIC 
-g++ -std=c++11 -O2 -shared -o convam_gpu.so Convam.cc   cuda_kernel.cu.o gemm.cu.o reverseNswapdim23.cu.o $PROFILE ${TF_CFLAGS[@]}  -fPIC -L/usr/local/cuda-9.0/lib64 -lcudart ${TF_LFLAGS[@]}
+g++ -std=c++11 -O2 -shared -o convam_gpu.so Convam.cc   cuda_kernel.cu.o gemm.cu.o reverseNswapdim23.cu.o $PROFILE ${TF_CFLAGS[@]}  -fPIC -L/usr/local/cuda/lib64 -lcudart ${TF_LFLAGS[@]}
 rm -f *.o
