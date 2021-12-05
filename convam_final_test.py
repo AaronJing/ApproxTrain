@@ -1,11 +1,13 @@
 
 import numpy as np
-#import _convam_grad
+import sys
+import _convam_grad
 import tensorflow as tf
 # from tensorflow.contrib.layers import flatten
-import sys
+
 np.set_printoptions(threshold=sys.maxsize)
-from python.keras.layers.am_convolutional import AMConv2D
+convam_module = tf.load_op_library('/scratch/ka88/jg7534/tmp/AMTensorflow/AMDNN/convam_gpu.so')
+
 FLOAT = False
 
 def float_comparison(x, y):
@@ -21,9 +23,9 @@ def test_convam(_x,_w,_strides=[1, 1, 1, 1]):
         with tf.GradientTape(persistent=True) as g:
             g.watch(x)
             g.watch(W)
-            wx_convam = AMConv2D(x, W, strides=_strides, padding='VALID')
+            wx_convam = convam_module.convam(x, W, strides=_strides, padding='VALID')
             wx_conv = tf.nn.conv2d(x, W, strides=_strides, padding='VALID')
-            wx_convam_same = AMConv2D(x, W, strides=_strides, padding='SAME')
+            wx_convam_same = convam_module.convam(x, W, strides=_strides, padding='SAME')
             wx_conv_same = tf.nn.conv2d(x, W, strides=_strides, padding='SAME')
     
         grad_filter_am = g.gradient(wx_convam, W)
