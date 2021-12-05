@@ -53,6 +53,25 @@ pip3 install --user tensorflow-datasets
 
 ### Using Existing Multipliers
 
+We provides two approximate multipliers, Mitchell logarithm-based approximate multiplier and minimally biased multipliers in `cuda` directory.
+```
+FPmultMBM_fast10.inl
+FPmultMBM_fast12.inl
+FPmultMBM_fast14.inl
+FPmultMBM_fast16.inl                                                             - 
+FPmultMBM_fast32.inl
+Mitchell_10.inl
+Mitchell_12.inl
+Mitchell_14.inl
+Mitchell_16.inl
+Mitchell_32.inl
+```
+`FPmultMBM_fast*`represents minimally biased multipliers and `Mitchell_*` represents Mitchell logarithm-based approximate multiplier. Numbers following after multiplier's name represent the number of bits of input. Followings are bits format.
+
+```
+sign exponent 
+```
+
 ### Adding Your Multipliers
 
 ## Project Structure
@@ -61,4 +80,9 @@ pip3 install --user tensorflow-datasets
 
 TODO
 
+## Acknowledgement
+Mitchell logarithm-based approximate multiplier: [Computer Multiplication and Division Using Binary Logarithms](https://ieeexplore.ieee.org/document/5219391)
 
+Minimally biased multipliers: [Minimally Biased Multipliers for Approximate Integer and Floating-Point Multiplication](https://ieeexplore.ieee.org/document/5219391)
+
+Some code snippets have been taken from [tfapprox](https://github.com/ehw-fit/tf-approximate), [add custom operand to tensorflow](https://github.com/tensorflow/custom-op) and [tensorflow](https://github.com/tensorflow/tensorflow).
