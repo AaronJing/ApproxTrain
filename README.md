@@ -58,7 +58,7 @@ We provides two approximate multipliers, Mitchell logarithm-based approximate mu
 FPmultMBM_fast10.inl
 FPmultMBM_fast12.inl
 FPmultMBM_fast14.inl
-FPmultMBM_fast16.inl                                                             - 
+FPmultMBM_fast16.inl                                                              
 FPmultMBM_fast32.inl
 Mitchell_10.inl
 Mitchell_12.inl
@@ -68,8 +68,32 @@ Mitchell_32.inl
 ```
 `FPmultMBM_fast*`represents minimally biased multipliers and `Mitchell_*` represents Mitchell logarithm-based approximate multiplier. Numbers following after multiplier's name represent the number of bits of input. Followings are bits format.
 
+| sign | exponent | mantissa | number of total bits |
+| ----------- | ----------- | ----------- | ----------- |
+| 1 | 8 | 1 | 10 |
+| 1 | 8 | 3 | 12 |
+| 1 | 8 | 5 | 14 |
+| 1 | 8 | 7 | 16 |
+| 1 | 8 | 23 | 32 |
+
+Select multiplier you would like to test with and select it corresponding flags from  `AMDNN/cuda/gemm.cu` to define in `gpu_compile.sh`.
+
+For example,
+
+In `AMDNN/cuda/gemm.cu`, find a multiplier you would like to use
+
 ```
-sign exponent 
+
+#ifdef FPMBM32_MULTIPLIER
+...
+#endif
+```
+
+
+In `AMDNN/gpu_compile.sh`, define it as following
+
+```
+MULTIPLIER="-DFMBM32_MULTIPLIER=1"
 ```
 
 ### Adding Your Multipliers
