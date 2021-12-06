@@ -80,26 +80,86 @@ Select multiplier you would like to test with and select it corresponding flags 
 
 For example,
 
-In `AMDNN/cuda/gemm.cu`, find a multiplier you would like to use
+- In `AMDNN/cuda/gemm.cu`, find a multiplier you would like to use
 
 ```
-
 #ifdef FPMBM32_MULTIPLIER
 ...
 #endif
 ```
 
 
-In `AMDNN/gpu_compile.sh`, define it as following
+- In `AMDNN/gpu_compile.sh`, define it as following
 
 ```
 MULTIPLIER="-DFMBM32_MULTIPLIER=1"
 ```
 
+- Compile into library
+
+```
+./gpu_compile.sh
+```
 ### Adding Your Multipliers
 
-## Project Structure
+Multiplier should take two `float32` as input and output one `float32` if you would like to train/inference.
 
+For inference, it supports integer type.
+
+- In `AMDNN/cuda/gemm.cu`, define `MULTIPLY(a, b)` using your multiplier.
+
+- Add `your-multiplier-design.inl` in `cuda` directory.
+
+- Add `__device__` attribute to all related multiplier function in `your-multiplier-design.inl`.
+
+- In `AMDNN/gpu_compile.sh`, define it as following
+
+```
+MULTIPLIER="-DYOUR_MULTIPLIER=1"
+```
+
+- Compile into library `convam.so`
+
+```
+./gpu_compile.sh
+```
+
+## Use in Tensorflow model
+
+`Convam.so` has been abstracted by python wrapper. It has exact args definition as official Conv2D. However, we only support input format (batch, img_height, img_width, channel). Dilation is not supported at the momemnt. 
+
+```
+tf.keras.layers.Conv2D
+```
+
+To use approximate Conv2D, import the library
+
+```
+from python.keras.layers.am_convolutional import AMConv2D
+```
+
+Then you can replace exisiting `Conv2D` with `AMConv2D` in your model definition.
+
+**P.S.** If you would like to use checkpoint between `Conv2D` and `AMConv2D`, make sure you save weights and load weights only. Save/load model might not give your correct graph.(See it on [tensorflow save_and_load](https://www.tensorflow.org/tutorials/keras/save_and_load))
+
+## Project Structure
+```
+.
+└── AMDNN
+    └── python # python wrapper for AMConv2D, code snippet taken from official Tensorflow
+    └── cuda
+        ├── cuda_kernel.cu # include im2col and GPU implementation for OpFunctor
+        ├── gemm.cu # GEMM kernel and multiplier definition
+        ├── reverseNswapdim23.cu # a helper kernel for backpropagation
+        ├── *.inl # multiplier
+        └── other files # helper function taken from official Tensorflow
+    └── example
+    └── Convam.cc # OpKernel definition
+    └── Convam.h # OpFunctor definition and partial specialisation
+    └── convam_final_test.py # a primitive test for Convam has exact behavior as Conv2D
+    └── _convam_grad.py # gradient register for above primitive test
+
+```
 ## Docker Image
 
 TODO
