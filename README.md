@@ -12,6 +12,10 @@ For Ubuntu user,
 pip3 install --user Tensorflow==2.3.0
 ``
 
+### Python3
+
+We recommend using python3 3.5-3.8
+
 ### CUDA & GCC/G++
 
 Our code base is built against CUDA 10.1 and gcc/g++ 8.4.0.
@@ -37,8 +41,28 @@ sudo update-alternatives --config gcc
 sudo update-alternatives --config g++
 
 ```
+### cuDNN
 
-To make your program run properly, cuDNN is required as well.
+cuDNN is reuiqred for non-approximate layer, e.g., max pooling.
+
+We use cuDNN 7.6.5.
+
+After downloading, 
+
+```
+// decompress cuDNN
+tar -xvf cudnn-10.1-linux-x64-v7.6.5.32.tar.xz
+// copy to CUDA tool kit directory
+sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include 
+sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64 
+sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
+```
+Details can be found [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
+
+### alternative version
+
+If you do not like to use provided dependency, you can follow official [build guide](https://www.tensorflow.org/install/source).
+
 ## Example
 
 ### Install tensorflow dataset
@@ -161,6 +185,10 @@ Then you can replace exisiting `Conv2D` with `AMConv2D` in your model definition
 
 ```
 ## Docker Image
+
+TODO
+
+## Troubleshooting
 
 TODO
 
