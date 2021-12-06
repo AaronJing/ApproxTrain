@@ -68,3 +68,4 @@ test/ResNet-Tensorflow-Test/logs
 test/ResNet-Tensorflow-Test/output
 output
 *.pyc
+errorout
