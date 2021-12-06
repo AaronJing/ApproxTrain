@@ -6,7 +6,7 @@ import tensorflow as tf
 # from tensorflow.contrib.layers import flatten
 
 np.set_printoptions(threshold=sys.maxsize)
-convam_module = tf.load_op_library('/scratch/ka88/jg7534/tmp/AMTensorflow/AMDNN/convam_gpu.so')
+convam_module = tf.load_op_library('/home/jing/AMDNN/convam_gpu.so')
 
 FLOAT = False
 
