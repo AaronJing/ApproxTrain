@@ -12,9 +12,6 @@
 #include "gemm.cuh"
 #include "reverseNswapdim23.cuh"
 #include "../Convam.h"
-//using namespace std;
-#define THREADS_PER_BLOCK 1024
-#define BLOCK_SIZE 1024
 using GPUDevice = Eigen::GpuDevice;
 using CPUDevice = Eigen::ThreadPoolDevice;
 static inline double realtime(void) {
