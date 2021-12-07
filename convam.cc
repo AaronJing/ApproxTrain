@@ -1,3 +1,4 @@
+#include "Convam.h"
 // #include "tensorflow/core/kernels/conv_ops.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
@@ -13,21 +14,16 @@
 // #include "tensorflow/core/kernels/conv_ops_gpu.h"
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow/core/framework/kernel_shape_util.h"
+#include "tensorflow/core/framework/types.h"
 #include <math.h>
 #include <iostream>
 #include <fstream>
 #include <chrono>
 #include <sys/time.h>
-#include "cuda/gpu_kernel_helper.h"
 using namespace std;
 using namespace tensorflow;
 using GPUDevice = Eigen::GpuDevice;
-static inline double realtime(void) {
-    struct timeval tp;
-    struct timezone tzp;
-    gettimeofday(&tp, &tzp);
-    return tp.tv_sec + tp.tv_usec * 1e-6;
-}
+using CPUDevice = Eigen::ThreadPoolDevice;
 struct ConvBackpropSpatialDimension {
   int64 input_size;
   int64 filter_size;
@@ -400,409 +396,255 @@ Status ComputeConv2DDimension(const Conv2DParameters& params,
 
   return Status::OK();
 }
-
 #undef TF_REQUIRES
 
-// REGISTER_OP("Convam")
-//     .Input("input: float")
-//     .Input("filter: float")
-//     .Output("output: float")
-//     .Attr("strides: list(int)")
-//     .Attr("use_cudnn_on_gpu: bool = true")
-//     .Attr(padding::GetPaddingAttrStringWithExplicit())
-//     .Attr(GetExplicitPaddingsAttrString())
-//     .Attr(GetConvnetDataFormatAttrString())
-//     .Attr("dilations: list(int) = [1, 1, 1, 1]")
-//     .SetShapeFn(::tensorflow::shape_inference::Conv2DShapeWithExplicitPadding);
-
 REGISTER_OP("Convam")
-    .Input("input: float")
-    .Input("filter: float")
-    .Output("output: float")
+    .Input("input: T")
+    .Input("filter: T")
+    .Output("output: T")
+    .Attr("T: {float, int32}")
     .Attr("strides: list(int)")
     .Attr("dilations: list(int) = [1, 1, 1, 1]")
     .Attr(GetPaddingAttrString())
     .Attr(GetConvnetDataFormatAttrString())
     .SetShapeFn(::tensorflow::shape_inference::Conv2DShape);
-
-
-class ConvamOpCPU : public OpKernel{
+// cpu specilisation
+template <typename T>
+struct ConvamFunctor<CPUDevice, T> {
+  void operator()(const CPUDevice& d, const T* input_data, T* output_data,
+            const int batch, const int out_rows, const int out_cols, 
+            const int out_depth, const int stride_cols, const int stride_rows,
+            const int filter_left_offset, const int filter_top_offset,
+            const int filter_rows, const int filter_cols, const int in_depth,
+            const int input_cols, const int input_rows, const T* filter,
+            const T* im2col, const int padding
+          ) {
+    
+    for (int batch_ = 0; batch_ < batch; ++batch_) {
+      for (int out_y = 0; out_y < out_rows; ++out_y) {
+        for (int out_x = 0; out_x < out_cols; ++out_x) {
+          for (int out_channel = 0; out_channel < out_depth; ++out_channel) {
+            const int in_x_origin = (out_x * stride_cols) - filter_left_offset;
+            const int in_y_origin = (out_y * stride_rows) - filter_top_offset;
+            T total(0);
+            for (int filter_y = 0; filter_y < filter_rows; ++filter_y) {
+              for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
+                for (int in_channel = 0; in_channel < in_depth;
+                     ++in_channel) {
+                  const int in_x = in_x_origin + filter_x;
+                  const int in_y = in_y_origin + filter_y;
+                  T input_value;
+                  if ((in_x >= 0) && (in_x < input_cols) && (in_y >= 0) &&
+                      (in_y < input_rows)) {
+                    input_value =
+                        input_data[(batch_ * input_cols * input_rows *
+                                    in_depth) +
+                                   (in_y * input_cols * in_depth) +
+                                   (in_x * in_depth) + in_channel];
+                  } else {
+                    input_value = T(0);
+                  }
+                  const T filter_value =
+                      filter[(filter_y * filter_cols * in_depth *
+                                   out_depth) +
+                                  (filter_x * in_depth * out_depth) +
+                                  (in_channel * out_depth) + out_channel];
+                  total += (input_value * filter_value);
+                }
+              }
+            } 
+            output_data[(batch_ * out_cols * out_rows * out_depth) +
+                        (out_y * out_cols * out_depth) +
+                        (out_x * out_depth) + out_channel] = total;
+          }
+        }
+      }
+    }
+  }
+};
+template <typename Device, typename T>
+class ConvamOp : public OpKernel{
 public:
-  explicit ConvamOpCPU(OpKernelConstruction* context) : OpKernel(context) {
+  explicit ConvamOp(OpKernelConstruction* context) : OpKernel(context) {
     OP_REQUIRES_OK(context, InitConv2DParameters(context, &params_));
   }
   void Compute(OpKernelContext* context) override {
-    // ----------test for shape_inference-----------
-    // TensorShape output_shape;
-    // output_shape.AddDim(2);
-    // output_shape.AddDim(2);
-    // Tensor* output = NULL;
-    // OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output));
-    // auto output_tensor = output->matrix<float>();
-    // output_tensor(0,0) = 1;
-    // output_tensor(0,1) = 2;
-    // output_tensor(1,0) = 3;
-    // output_tensor(1,1) = 4;
-    // ----------test for shape_inference-----------
-
-    // ----------test for output shape-----------
-    // Input tensor is of the following dimensions:
-    // [ batch, in_rows, in_cols, in_depth ]
+    //  grab input
     const Tensor& input = context->input(0);
-
-    // Input filter is of the following dimensions:
-    // [ filter_rows, filter_cols, in_depth, out_depth]
     const Tensor& filter = context->input(1);
+    // calculate parameters
     Conv2DDimensions dimensions;
     OP_REQUIRES_OK(context,
                    ComputeConv2DDimension(params_, input, filter, &dimensions));
-
+    // get output shape
     TensorShape out_shape = ShapeFromFormat(
         params_.data_format, dimensions.batch, dimensions.out_rows,
         dimensions.out_cols, dimensions.out_depth);
-
-    // Output tensor is of the following dimensions:
-    // [ in_batch, out_rows, out_cols, out_depth ]
+    // allocate output tensor
     Tensor* output = nullptr;
     OP_REQUIRES_OK(context, context->allocate_output(0, out_shape, &output));
-    // ----------test for output shape-----------
-    
-    // ----------grab shape------------
-    // const int input_batch = input.shape().dim_size(0);
-    // const int input_height = input.shape().dim_size(1);
-    // const int input_width = input.shape().dim_size(2);
-    // const int input_channel = input.shape().dim_size(3);
-
-    // const int filter_height = filter.shape().dim_size(0);
-    // const int filter_width = filter.shape().dim_size(1);
-    // const int filter_in = filter.shape().dim_size(2);
-    // const int filter_out = filter.shape().dim_size(3);
-
-    // ----------grab shape------------
-    
-    // ----------test for accessing tensor -----------
-    auto output_data = output->flat<float>().data();
-    auto input_data = input.flat<float>().data();
-    auto filter_data = filter.flat<float>().data();
-    // for(int i = 0; i < input_batch*input_height*input_width*input_channel; i++)
-    //   printf("%f\n\n\n",in_put[i]);
-    //printf("padding type%d\n",params_.padding);
-    // ----------test for accessing tensor -----------
-
-    // ----------test for forward propagation-----------
+    // allocate im2col tensor for gpu
+    Tensor im2col;
+    int64 const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
+    int64 const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
+    if(dimensions.filter_cols == 1 && dimensions.filter_rows == 1 && 
+            dimensions.stride_rows == 1 && dimensions.stride_cols){
+        size_t const block_size = 16;
+        size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
+        if (dimensions.batch <= max_batch) {
+            OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        } else {
+            OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        } 
+    } else if(dimensions.filter_rows == dimensions.input_rows && dimensions.filter_cols == dimensions.input_cols&& params_.padding == 1){
+        OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+    } else {
+        size_t const block_size = 16;
+        size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.out_rows*dimensions.out_cols);
+        if (dimensions.batch <= max_batch) {
+            OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), TensorShape({dimensions.batch*dimensions.out_cols*dimensions.out_rows, dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols}), &im2col));
+        } else {
+            OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
+        }
+    }
+    auto output_data = output->flat<T>().data();
+    auto input_data = input.flat<T>().data();
+    auto filter_data = filter.flat<T>().data();
+    auto im2col_data = im2col.flat<T>().data();
+    // Calculate filter offset
     int filter_left_offset;
     int filter_top_offset;
     // VALID Padding
     if (params_.padding == 1) {
       filter_left_offset =
           ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols+1) / 2;
-      // printf("filter_left_offset = %d, out_rows = %d, stride_cols = %d, filter_rows = %d, input_rows = %d\n",
-      //             filter_left_offset,(int)dimensions.out_rows,dimensions.stride_cols,dimensions.filter_rows,dimensions.input_rows);
       filter_top_offset = ((dimensions.out_rows - 1) * dimensions.stride_rows + dimensions.filter_rows - dimensions.input_rows+1) /
           2;
       filter_left_offset = filter_left_offset>0?filter_left_offset:0;
       filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-      // printf("filter_top_offset = %d, out_cols = %d, stride_rows = %d, filter_cols = %d, input_cols = %d\n",
-      //             filter_top_offset,(int)dimensions.out_cols,dimensions.stride_rows,dimensions.filter_cols,dimensions.input_cols);
     } else {
       filter_left_offset =
           ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols) / 2;
-      // printf("filter_left_offset = %d, out_rows = %d, stride_cols = %d, filter_rows = %d, input_rows = %d\n",
-      //             filter_left_offset,(int)dimensions.out_rows,dimensions.stride_cols,dimensions.filter_rows,dimensions.input_rows);
       filter_left_offset = filter_left_offset>0?filter_left_offset:0;
       filter_top_offset =
           ((dimensions.out_rows - 1) * dimensions.stride_rows + dimensions.filter_rows - dimensions.input_rows) /
           2;
       filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-      // printf("filter_top_offset = %d, out_cols = %d, stride_rows = %d, filter_cols = %d, input_cols = %d\n",
-      //             filter_top_offset,(int)dimensions.out_cols,dimensions.stride_rows,dimensions.filter_cols,dimensions.input_cols);
     }
-    
-    for (int batch = 0; batch < dimensions.batch; ++batch) {
-      for (int out_y = 0; out_y < dimensions.out_rows; ++out_y) {
-        for (int out_x = 0; out_x < dimensions.out_cols; ++out_x) {
-          for (int out_channel = 0; out_channel < dimensions.out_depth; ++out_channel) {
-            const int in_x_origin = (out_x * dimensions.stride_cols) - filter_left_offset;
-            const int in_y_origin = (out_y * dimensions.stride_rows) - filter_top_offset;
-            float total(0);
-            for (int filter_y = 0; filter_y < dimensions.filter_rows; ++filter_y) {
-              for (int filter_x = 0; filter_x < dimensions.filter_cols; ++filter_x) {
-                for (int in_channel = 0; in_channel < dimensions.in_depth;
-                     ++in_channel) {
-                  const int in_x = in_x_origin + filter_x;
-                  const int in_y = in_y_origin + filter_y;
-                  float input_value;
-                  if ((in_x >= 0) && (in_x < dimensions.input_cols) && (in_y >= 0) &&
-                      (in_y < dimensions.input_rows)) {
-                    input_value =
-                        input_data[(batch * dimensions.input_cols * dimensions.input_rows *
-                                    dimensions.in_depth) +
-                                   (in_y * dimensions.input_cols * dimensions.in_depth) +
-                                   (in_x * dimensions.in_depth) + in_channel];
-                  } else {
-                    input_value = float(0);
-                  }
-                  const float filter_value =
-                      filter_data[(filter_y * dimensions.filter_cols * dimensions.in_depth *
-                                   dimensions.out_depth) +
-                                  (filter_x * dimensions.in_depth * dimensions.out_depth) +
-                                  (in_channel * dimensions.out_depth) + out_channel];
-                  total += (input_value * filter_value);
+    ConvamFunctor<Device, T>()(
+            context->eigen_device<Device>(),
+            input_data,
+            output_data,
+            dimensions.batch,
+            dimensions.out_rows,
+            dimensions.out_cols,
+            dimensions.out_depth,
+            dimensions.stride_cols,
+            dimensions.stride_rows,
+            filter_left_offset,
+            filter_top_offset,
+            dimensions.filter_rows,
+            dimensions.filter_cols,
+            dimensions.in_depth,
+            dimensions.input_cols,
+            dimensions.input_rows,
+            filter_data,
+            im2col_data,
+            params_.padding
+            );
+  }
+  private:
+    Conv2DParameters params_;
+  TF_DISALLOW_COPY_AND_ASSIGN(ConvamOp);
+};
+// For forwardpropagation
+// Register the CPU kernels.
+#define REGISTER_CPU_CONVAM(T)                                          \
+  REGISTER_KERNEL_BUILDER(                                       \
+      Name("Convam").Device(DEVICE_CPU).TypeConstraint<T>("T"), \
+      ConvamOp<CPUDevice, T>);
+REGISTER_CPU_CONVAM(float);
+REGISTER_CPU_CONVAM(int32);
+// Register the GPU kernels.
+#ifdef GOOGLE_CUDA
+#define REGISTER_GPU_CONVAM(T)                                          \
+  /* Declare explicit instantiations in kernel_example.cu.cc. */ \
+  extern template class ConvamFunctor<GPUDevice, T>;            \
+  REGISTER_KERNEL_BUILDER(                                       \
+      Name("Convam").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
+      ConvamOp<GPUDevice, T>);
+REGISTER_GPU_CONVAM(float);
+REGISTER_GPU_CONVAM(int32);
+#endif  // GOOGLE_CUDA
+
+// CPU specisialization for Convam filter grad
+template <typename T>
+struct ConvamFilterGradFunctor<CPUDevice, T>{
+  void operator()(const CPUDevice& d, const T* input, const T* grad, T* im2col,
+          const int input_rows, const int input_cols, const int batch, 
+          const int in_depth, const int out_cols, const int out_rows,
+          const int out_depth, const int filter_left_offset, 
+          const int filter_top_offset, const int stride_rows, 
+          const int stride_cols, const int filter_cols, const int filter_rows, 
+          T* output
+          ){
+
+    for (int out_y = 0; out_y < filter_rows; ++out_y) {
+        for (int out_x = 0; out_x < filter_cols; ++out_x) {
+            for (int in_channel = 0; in_channel < in_depth; ++in_channel) {
+                for (int out_channel = 0; out_channel < out_depth; ++out_channel) {
+                    const int in_x_origin = (out_x * 1) - filter_left_offset;
+                    const int in_y_origin = (out_y * 1) - filter_top_offset;
+                    T total(0);
+                    for (int grad_y = 0; grad_y < (out_rows-1)*stride_rows+1; ++grad_y) {
+                        for (int grad_x = 0; grad_x < (out_cols-1)*stride_cols+1; ++grad_x) {
+                            for (int g_batch = 0; g_batch < batch;
+                                ++g_batch) {
+                                const int in_x = in_x_origin + grad_x;
+                                const int in_y = in_y_origin + grad_y;
+                                T input_value;
+                                if ((in_x >= 0) && (in_x < input_cols) && (in_y >= 0) &&
+                                    (in_y < input_rows)) {
+                                    input_value = input[
+                                        (g_batch* input_rows * input_cols *
+                                         in_depth) +
+                                        (in_y * input_cols * in_depth) +
+                                        (in_x * in_depth) + in_channel];
+                                } else {
+                                    input_value = T(0);
+                                }
+                  
+                                const float i_y = (grad_y)/(float)stride_rows ;
+                                const float i_x = (grad_x)/(float)stride_cols ;
+                                const bool y = fmod(i_y,1)==float(0);
+                                const bool x = fmod(i_x,1)==float(0);
+
+                                const T grad_value = (x&y) ? 
+                                    grad[(g_batch * out_cols * out_rows *
+                                    out_depth) +
+                                    (int(i_y) * out_cols*out_depth) +
+                                    (int(i_x) * out_depth) + out_channel]:0;
+                                total += (input_value * grad_value);
+                            }
+                        }
+                    }
+                    output[(out_y * filter_cols * in_depth * 
+                            out_depth) +
+                        (out_x * in_depth *out_depth) +
+                        (in_channel *out_depth) + out_channel] = total;
+
                 }
-              }
-            } 
-            output_data[(batch * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
-                        (out_y * dimensions.out_cols * dimensions.out_depth) +
-                        (out_x * dimensions.out_depth) + out_channel] = total;
-          }
+            }
         }
-      }
     }
-  }
-  
-  private:
-    Conv2DParameters params_;
-  TF_DISALLOW_COPY_AND_ASSIGN(ConvamOpCPU);
+  } 
 };
-
-REGISTER_KERNEL_BUILDER(Name("Convam").Device(DEVICE_CPU), ConvamOpCPU);
-
-#define loop1D(i,n) for(int i = 0; i < n; ++i)
-#define loop1Da(i,n,inc) for(int i = 0; i < n; i+=inc)
-void ConvamKernellLauncher(
-        const GPUDevice &d,
-  const float* inputs,
-  const float* filter,
-  float* im2col,
-  const int batch,
-  const int in_row,
-  const int in_col,
-  const int out_row,
-  const int out_col,
-  const int out_depth,
-  const int in_depth,
-  const int filter_row,
-  const int filter_col,
-  const int stride_row,
-  const int stride_col,
-  // Padding
-  const int left_offset,
-  const int top_offset,
-  const int padding,
-  float* output
-);
-
-class ConvamOpGPU : public OpKernel{
-public:
-  explicit ConvamOpGPU(OpKernelConstruction* context) : OpKernel(context) {
-    OP_REQUIRES_OK(context, InitConv2DParameters(context, &params_));
-  }
-  void Compute(OpKernelContext* context) override {
-    double begin = realtime();
-    const Tensor& input = context->input(0);
-    const Tensor& filter = context->input(1);
-    Conv2DDimensions dimensions;
-    OP_REQUIRES_OK(context,
-                   ComputeConv2DDimension(params_, input, filter, &dimensions));
-
-    TensorShape out_shape = ShapeFromFormat(
-        params_.data_format, dimensions.batch, dimensions.out_rows,
-        dimensions.out_cols, dimensions.out_depth);
-    // printf("frontend dimensions batch %d",dimensions.batch);
-    Tensor* output = nullptr;
-    OP_REQUIRES_OK(context, context->allocate_output(0, out_shape, &output));
-    auto f_output_data = output->flat<float>().data();
-    auto f_input_data = input.flat<float>().data();
-    auto f_filter_data = filter.flat<float>().data();
-
-    int64 filter_left_offset;
-    int64 filter_top_offset;
-    if (params_.padding == 1) {
-      filter_left_offset =
-          ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols+1) / 2;
-      filter_top_offset = ((dimensions.out_rows - 1) * dimensions.stride_rows + dimensions.filter_rows - dimensions.input_rows+1) /
-          2;
-      filter_left_offset = filter_left_offset>0?filter_left_offset:0;
-      filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-
-    } else {
-      filter_left_offset =
-          ((dimensions.out_cols - 1) * dimensions.stride_cols + dimensions.filter_cols - dimensions.input_cols) / 2;
-
-      filter_left_offset = filter_left_offset>0?filter_left_offset:0;
-      filter_top_offset =
-          ((dimensions.out_rows - 1) * dimensions.stride_rows + dimensions.filter_rows - dimensions.input_rows) /
-          2;
-      filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-
-    }
-  double end = realtime();
-  #ifdef PROFILE
-  cout << "Forward preparation Time difference = " << end - begin  << endl;
-  cout << "Forward shape: Input " << dimensions.batch << " " << dimensions.input_rows << " " << dimensions.input_cols << " " << dimensions.in_depth \
-  << " Filter " << dimensions.filter_rows << " " << dimensions.filter_cols << " " << dimensions.in_depth << " " << dimensions.out_depth << endl;
-  #endif
- //simple tiling 
-  int64 const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
-  int64 const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
-  if( dimensions.filter_cols == 1 && dimensions.filter_rows == 1 && dimensions.stride_rows == 1 && dimensions.stride_cols){
-    size_t const block_size = 16;
-    size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.input_rows*dimensions.input_cols);
-    if (dimensions.batch <= max_batch) {
-        Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
-        auto im2col_data = im2col.flat<float>().data();
-       ConvamKernellLauncher(
-         context->eigen_device<GPUDevice>(),
-         f_input_data,
-         f_filter_data,
-         im2col_data,
-         dimensions.batch,
-         dimensions.input_rows,
-         dimensions.input_cols,
-         dimensions.out_rows,
-         dimensions.out_cols,
-         dimensions.out_depth,
-         dimensions.in_depth,
-         dimensions.filter_rows,
-         dimensions.filter_cols,
-         dimensions.stride_rows,
-         dimensions.stride_cols,
-         filter_left_offset,
-         filter_top_offset,
-         params_.padding,
-         f_output_data
-       );
-    }
-    else {
-       Tensor im2col;
-       OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
-       auto im2col_data = im2col.flat<float>().data();
-       loop1Da(i,dimensions.batch,max_batch){
-           size_t const ibatch =  dimensions.batch -1 - i >= max_batch ? max_batch : dimensions.batch-i ;
-        ConvamKernellLauncher(
-          context->eigen_device<GPUDevice>(),
-          f_input_data+i*oneinputsize,
-          f_filter_data,
-          im2col_data,
-          ibatch,//dimensions.batch,
-          dimensions.input_rows,
-          dimensions.input_cols,
-          dimensions.out_rows,
-          dimensions.out_cols,
-          dimensions.out_depth,
-          dimensions.in_depth,
-          dimensions.filter_rows,
-          dimensions.filter_cols,
-          dimensions.stride_rows,
-          dimensions.stride_cols,
-          filter_left_offset,
-          filter_top_offset,
-          params_.padding,
-          f_output_data+i*oneoutputsize
-        );
-       } 
-    } 
-  }else if (dimensions.filter_rows == dimensions.input_rows && dimensions.filter_cols == dimensions.input_cols&& params_.padding == 1){
-        Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
-        auto im2col_data = im2col.flat<float>().data();
-        ConvamKernellLauncher(
-          context->eigen_device<GPUDevice>(),
-          f_input_data,
-          f_filter_data,
-          im2col_data,
-          dimensions.batch,
-          dimensions.input_rows,
-          dimensions.input_cols,
-          dimensions.out_rows,
-          dimensions.out_cols,
-          dimensions.out_depth,
-          dimensions.in_depth,
-          dimensions.filter_rows,
-          dimensions.filter_cols,
-          dimensions.stride_rows,
-          dimensions.stride_cols,
-          filter_left_offset,
-          filter_top_offset,
-          params_.padding,
-          f_output_data
-        );
-
-  }else {
-    size_t const block_size = 16;
-    size_t const max_batch = (65536*block_size + 1 - block_size)/(dimensions.out_rows*dimensions.out_cols);
-    if (dimensions.batch <= max_batch) {
-        Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({dimensions.batch*dimensions.out_cols*dimensions.out_rows, dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols}), &im2col));
-        auto im2col_data = im2col.flat<float>().data();
-       ConvamKernellLauncher(
-         context->eigen_device<GPUDevice>(),
-         f_input_data,
-         f_filter_data,
-         im2col_data,
-         dimensions.batch,
-         dimensions.input_rows,
-         dimensions.input_cols,
-         dimensions.out_rows,
-         dimensions.out_cols,
-         dimensions.out_depth,
-         dimensions.in_depth,
-         dimensions.filter_rows,
-         dimensions.filter_cols,
-         dimensions.stride_rows,
-         dimensions.stride_cols,
-         filter_left_offset,
-         filter_top_offset,
-         params_.padding,
-         f_output_data
-       );
-    } else {
-        Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, TensorShape({max_batch*dimensions.in_depth*dimensions.filter_rows*dimensions.filter_cols*dimensions.out_rows*dimensions.out_cols}), &im2col));
-        auto im2col_data = im2col.flat<float>().data();
-       loop1Da(i,dimensions.batch,max_batch){
-           size_t const ibatch =  dimensions.batch -1 - i >= max_batch ? max_batch : dimensions.batch-i ;
-        ConvamKernellLauncher(
-          context->eigen_device<GPUDevice>(),
-          f_input_data+i*oneinputsize,
-          f_filter_data,
-          im2col_data,
-          ibatch,//dimensions.batch,
-          dimensions.input_rows,
-          dimensions.input_cols,
-          dimensions.out_rows,
-          dimensions.out_cols,
-          dimensions.out_depth,
-          dimensions.in_depth,
-          dimensions.filter_rows,
-          dimensions.filter_cols,
-          dimensions.stride_rows,
-          dimensions.stride_cols,
-          filter_left_offset,
-          filter_top_offset,
-          params_.padding,
-          f_output_data+i*oneoutputsize
-        );
-       } 
-    
-    }
-  }
-  }
-  private:
-    Conv2DParameters params_;
-  TF_DISALLOW_COPY_AND_ASSIGN(ConvamOpGPU);
-};
-
-REGISTER_KERNEL_BUILDER(Name("Convam").Device(DEVICE_GPU), ConvamOpGPU);
-
-
-
 REGISTER_OP("ConvamFilterGrad")
-  .Input("input: float")
+  .Attr("T: numbertype")
+  .Input("input: T")
   .Input("filter_sizes: int32")
-  .Input("out_backprop: float")
-  .Output("grad_filter: float")
+  .Input("out_backprop: T")
+  .Output("grad_filter: T")
   .Attr("strides: list(int)")
   .Attr("dilations: list(int) = [1, 1, 1, 1]")
   .Attr(GetPaddingAttrString())
@@ -814,11 +656,10 @@ REGISTER_OP("ConvamFilterGrad")
       c->set_output(0, s);
       return Status::OK();
     });
-
-
-class ConvamFilterGradOpCPU: public OpKernel {
+template <typename Device, typename T>
+class ConvamFilterGradOp: public OpKernel {
 public:
-  explicit ConvamFilterGradOpCPU(OpKernelConstruction * context): OpKernel(context){
+  explicit ConvamFilterGradOp(OpKernelConstruction * context): OpKernel(context){
      string data_format;
     OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
     OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
@@ -860,305 +701,6 @@ public:
     const Tensor& input = context->input(0);
     const Tensor& filter_sizes = context->input(1);
     const Tensor& out_backprop = context->input(2);
-    OP_REQUIRES(
-        context, TensorShapeUtils::IsVector(filter_sizes.shape()),
-        errors::InvalidArgument(
-            "Conv2DBackpropFilter: filter_sizes input must be 1-dim, not ",
-            filter_sizes.dims()));
-    TensorShape filter_shape;
-    OP_REQUIRES_OK(context, TensorShapeUtils::MakeShape(
-                                filter_sizes.vec<int32>(), &filter_shape));
-
-    Tensor* filter_backprop = nullptr;
-    OP_REQUIRES_OK(context,
-                   context->allocate_output(0, filter_shape, &filter_backprop));
-    // auto out = filter_backprop->template flat<float>();
-    // out.data()[1] = 1;
-    // auto grad = out_backprop.flat<float>().data();
-    // printf("list grad\n");
-    // for(int i = 0; i < filter_shape.num_elements();i++ ){
-    //   printf("%f  ",grad[i]);
-    // }
-    // printf("end of list grad\n");
-    // If there is nothing to compute, return.
-    if (filter_shape.num_elements() == 0) {
-      return;
-    }
-    // If input is empty, set gradients to zero.
-    // if (input.shape().num_elements() == 0) {
-    //   functor::SetZeroFunctor<Device, T> f;
-    //   f(context->eigen_device<Device>(), filter_backprop->flat<f>());
-    //   return;
-    // }
-    ConvBackpropDimensions dims;
-    OP_REQUIRES_OK(context,
-                   ConvBackpropComputeDimensions(
-                       "Conv2DCustomBackpropFilter", /*num_spatial_dims=*/2,
-                       input.shape(), filter_shape, out_backprop.shape(),
-                       strides_, padding_, data_format_, &dims));
-    int64 pad_top, pad_bottom;
-    int64 pad_left, pad_right;
-    OP_REQUIRES_OK(
-        context,
-        GetWindowedOutputSizeVerbose(
-            dims.spatial_dims[0].input_size, dims.spatial_dims[0].filter_size,
-            dims.spatial_dims[0].stride, padding_,
-            &dims.spatial_dims[0].output_size, &pad_top, &pad_bottom));
-    OP_REQUIRES_OK(
-        context,
-        GetWindowedOutputSizeVerbose(
-            dims.spatial_dims[1].input_size, dims.spatial_dims[1].filter_size,
-            dims.spatial_dims[1].stride, padding_,
-            &dims.spatial_dims[1].output_size, &pad_left, &pad_right));
-    // printf("How much top %d\n",(int)pad_top);
-    // printf("How much bottom %d\n",(int)pad_bottom);
-    // printf("How much left %d\n",(int)pad_left);
-    // printf("How much right %d\n",(int)pad_right);
-    // For now we take the stride from the second and third dimensions only (we
-    // do not support striding on the batch or depth dimension).
-
-    // printf("input_rows/height %d\n",(int)dims.input_size(0));
-    // printf("input_cols/width %d\n",(int)dims.input_size(1));
-    // printf("input_size_batch %d\n",(int)dims.batch_size);
-    // printf("input_size_depth %d\n",(int)dims.in_depth);
-
-    // printf("filter_size0 %d\n",(int)dims.filter_size(0));
-    // printf("filter_size1 %d\n",(int)dims.filter_size(1));
-    // printf("input_depth %d\n",(int)dims.in_depth);
-    // printf("output_depth %d\n",(int)dims.out_depth);
-
-
-    // printf("outputsize_rows/height %d\n",(int)dims.output_size(0));
-    // printf("outputsize_col/width %d\n",(int)dims.output_size(1));
-    // printf("");
-    const int stride_rows = GetTensorDim(strides_, data_format_, 'H');
-    const int stride_cols = GetTensorDim(strides_, data_format_, 'W');
-    const int dilation_rows = GetTensorDim(dilations_, data_format_, 'H');
-    const int dilation_cols = GetTensorDim(dilations_, data_format_, 'W');
-    //get input dim
-    const int input_batch = GetTensorDim(input,data_format_,'N');
-    const int input_width = GetTensorDim(input,data_format_,'W');
-    const int input_height = GetTensorDim(input,data_format_,'H');
-    const int input_channel = GetTensorDim(input,data_format_,'C');
-    //get grad dim
-    const int grad_batch = GetTensorDim(out_backprop,data_format_,'N');
-    const int grad_width = GetTensorDim(out_backprop,data_format_,'W');
-    const int grad_height = GetTensorDim(out_backprop,data_format_,'H');
-    const int grad_channel = GetTensorDim(out_backprop,data_format_,'C');
-    //get filter dim
-    const int filter_width = filter_shape.dim_size(1);
-    const int filter_height = filter_shape.dim_size(0);
-    const int filter_indepth = filter_shape.dim_size(2);
-    const int filter_outdepth = filter_shape.dim_size(3);
-    // printf("How much input_batch %d\n",input_batch);
-    // printf("How much input_width %d\n",input_width);
-    // printf("How much input_height %d\n",input_height);
-    // printf("How much input_channel %d\n",input_channel);
-    // printf("How much grad_batch %d\n",grad_batch);
-    // printf("How much grad_width %d\n",grad_width);
-    // printf("How much grad_height %d\n",grad_height);
-
-    // printf("%d\n",filter_width);
-    // printf("%d\n",filter_height);
-    // printf("%d\n",filter_indepth);
-    // printf("%d\n",filter_outdepth);
-    int64 filter_left_offset;
-    int64 filter_top_offset;
-    //VALID Padding
-    if (padding_ == 1) {
-      filter_top_offset =
-          ((dims.output_size(0) - 1) * stride_rows + dims.filter_size(0) - dims.input_size(0) + 1) /
-          2;
-      // printf("filter_left_offset = %d, out_rows = %d, stride_cols = %d, filter_rows = %d, input_rows = %d\n",
-      //             (int)filter_left_offset,(int)dims.output_size(0),(int)stride_cols,(int)dims.filter_size(0),(int)dims.input_size(0));
-      filter_left_offset= ((dims.output_size(1) - 1) * stride_cols + dims.filter_size(1) -
-                           dims.input_size(1) + 1) /                  
-                          2;
-      filter_left_offset = filter_left_offset>0?filter_left_offset:0;
-      filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-      // printf("filter_top_offset = %d, out_cols = %d, stride_rows = %d, filter_cols = %d, input_cols = %d\n",
-      //             (int)filter_top_offset,(int)dims.output_size(1),(int)stride_rows,(int)dims.filter_size(1),(int)dims.input_size(1));
-    } else {
-      filter_top_offset =
-          ((dims.output_size(0) - 1) * stride_rows + dims.filter_size(0) - dims.input_size(0)) / 2;
-      // printf("filter_left_offset = %d, out_rows = %d, stride_cols = %d, filter_rows = %d, input_rows = %d\n",
-      //             (int)filter_left_offset,(int)dims.output_size(0),(int)stride_cols,(int)dims.filter_size(0),(int)dims.input_size(0));
-      filter_left_offset=
-          ((dims.output_size(1) - 1) * stride_cols + dims.filter_size(1) - dims.input_size(1)) /
-          2;
-      // printf("filter_top_offset = %d, out_cols = %d, stride_rows = %d, filter_cols = %d, input_cols = %d\n",
-      //             (int)filter_top_offset,(int)dims.output_size(1),(int)stride_rows,(int)dims.filter_size(1),(int)dims.input_size(1));
-      filter_left_offset = filter_left_offset>0?filter_left_offset:0;
-      filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-    }
-    // printf("Filter left offset %d, Filter top offset %d\n",(int)filter_left_offset,(int)filter_top_offset);
-
-    // Native backpropogation for filter.
-    // printf("How much grad_channel %d\n",grad_channel);
-    //grab input data and gradient
-    auto grad = out_backprop.flat<float>().data();
-    auto in_data = input.flat<float>().data();
-    auto out = filter_backprop->template flat<float>().data();
-
-    // now consider our grad become filter output
-    for (int out_y = 0; out_y < filter_height; ++out_y) {
-      for (int out_x = 0; out_x < filter_width; ++out_x) {
-        for (int in_channel = 0; in_channel < filter_indepth; ++in_channel) {
-          for (int out_channel = 0; out_channel < filter_outdepth; ++out_channel) {
-            const int in_x_origin = (out_x * 1) - filter_left_offset;
-            const int in_y_origin = (out_y * 1) - filter_top_offset;
-            float total(0);
-
-            // printf("x %d\n",in_x_origin);
-            // printf("y %d\n",in_y_origin);
-            for (int grad_y = 0; grad_y < (grad_height-1)*stride_rows+1; ++grad_y) {
-              for (int grad_x = 0; grad_x < (grad_width-1)*stride_cols+1; ++grad_x) {
-                for (int g_batch = 0; g_batch < grad_batch;
-                     ++g_batch) {
-                  const int in_x = in_x_origin + grad_x;
-                  const int in_y = in_y_origin + grad_y;
-                  float input_value;
-                  // If the location is outside the bounds of the input image,
-                  // use zero as a default value.
-                  if ((in_x >= 0) && (in_x < input_width) && (in_y >= 0) &&
-                      (in_y < input_height)) {
-                    input_value =
-                        in_data[(g_batch* input_height * input_width *
-                                    input_channel) +
-                                   (in_y * input_width * input_channel) +
-                                   (in_x * input_channel) + in_channel];
-                  } else {
-                    input_value = float(0);
-                  }
-                  
-                  const float i_y = (grad_y)/(float)stride_rows ;
-                  const float i_x = (grad_x)/(float)stride_cols ;
-                  // printf("%f i_y\n",i_y);
-                  // printf("%f i_x\n",i_x);
-                  // printf("%f fmod i_y\n",fmod(i_y,1));
-                  // printf("%f fmod i_x\n",fmod(i_x,1));
-                  // printf("%d fmod eq y\n",fmod(i_y,1)==float(0));
-                  // printf("%d fmod eq x\n",fmod(i_x,1)==float(0));
-                  const bool y = fmod(i_y,1)==float(0);
-                  const bool x = fmod(i_x,1)==float(0);
-
-                  const float grad_value = (x&y) ?
-                      grad[(g_batch * grad_width * grad_height *
-                                   grad_channel) +
-                                  (int(i_y) * grad_width*grad_channel) +
-                                  (int(i_x) * grad_channel) + out_channel]:0;
-                  // printf("grad value %f\n",grad_value);
-                  total += (input_value * grad_value);
-                }
-              }
-            }
-            out[(out_y * filter_width * filter_indepth *filter_outdepth) +
-                        (out_x * filter_indepth *filter_outdepth) +
-                        (in_channel *filter_outdepth) + out_channel] = total;
-
-          }
-        }
-      }
-    }
-
-    // std::fstream fs;
-    // fs.open("cpu_filter_log", std::fstream::in | std::fstream::out | std::fstream::app);
-    // // ----------test for forward propagation-----------
-    // for(int i = 0; i < filter_height; i++){
-    //   for(int j = 0; j < filter_width; j++){
-    //     for(int k = 0; k < filter_indepth; k++){
-    //       for(int l = 0; l < filter_outdepth; l++){
-    //           // printf("(%d, %d, %d, %d) %f\n",i,j,k,l,output_data[(i * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
-    //           //           (j * dimensions.out_cols * dimensions.out_depth) +
-    //           //           (k * dimensions.out_depth) + l]);
-    //           fs << i <<", " << j << ", " <<k<<", " << l << ",  " << out[(i* filter_width * filter_indepth *filter_outdepth) +
-    //                     (j * filter_indepth *filter_outdepth) +
-    //                     (k *filter_outdepth) + l]<<"\n";
-              
-    //       }
-    //     }
-    //   }
-    // }
-    // printf("From CPU filter\n");
-    // fs << "From CPU\n";
-    // fs.close();
-
-  }
-  private:
-  std::vector<int32> dilations_;
-  std::vector<int32> strides_;
-  Padding padding_;
-  TensorFormat data_format_;
-  TF_DISALLOW_COPY_AND_ASSIGN(ConvamFilterGradOpCPU);
- 
-};
-REGISTER_KERNEL_BUILDER(Name("ConvamFilterGrad").Device(DEVICE_CPU), ConvamFilterGradOpCPU);
-
-void ConvamFilterGradKernelLauncher(
-      const GPUDevice &d, 
-    const float* input,
-    const float* grad,
-    float* im2col,
-    const int input_height,
-    const int input_width,
-    const int batch,
-    const int in_depth,
-    const int grad_width,
-    const int grad_height,
-    const int grad_channel,
-    const int filter_left_offset,
-    const int filter_top_offset,
-    const int stride_row,
-    const int stride_col,
-    const int filter_width,
-    const int filter_height,
-    float* out
-);
-class ConvamFilterGradOpGPU: public OpKernel {
-public:
-  explicit ConvamFilterGradOpGPU(OpKernelConstruction * context): OpKernel(context){
-     string data_format;
-    OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
-    OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
-                errors::InvalidArgument("Invalid data format"));
-    OP_REQUIRES_OK(context, context->GetAttr("strides", &strides_));
-    OP_REQUIRES(context, strides_.size() == 4,
-                errors::InvalidArgument("Sliding window strides field must "
-                                        "specify 4 dimensions"));
-    int stride_n = GetTensorDim(strides_, data_format_, 'N');
-    int stride_c = GetTensorDim(strides_, data_format_, 'C');
-    int stride_h = GetTensorDim(strides_, data_format_, 'H');
-    int stride_w = GetTensorDim(strides_, data_format_, 'W');
-    OP_REQUIRES(
-        context, (stride_n == 1 && stride_c == 1),
-        errors::InvalidArgument("Current implementation does not yet support "
-                                "strides in the batch and depth dimensions."));
-    OP_REQUIRES(context, stride_h > 0 && stride_w > 0,
-                errors::InvalidArgument(
-                    "Row and column strides should be larger than 0."));
-    OP_REQUIRES_OK(context, context->GetAttr("dilations", &dilations_));
-    OP_REQUIRES(context, dilations_.size() == 4,
-                errors::InvalidArgument("Sliding window dilations field must "
-                                        "specify 4 dimensions"));
-    int dilation_n = GetTensorDim(dilations_, data_format_, 'N');
-    int dilation_c = GetTensorDim(dilations_, data_format_, 'C');
-    int dilation_h = GetTensorDim(dilations_, data_format_, 'H');
-    int dilation_w = GetTensorDim(dilations_, data_format_, 'W');
-    OP_REQUIRES(context, (dilation_n == 1 && dilation_c == 1),
-                errors::InvalidArgument(
-                    "Current implementation does not yet support "
-                    "dilations in the batch and depth dimensions."));
-    OP_REQUIRES(
-        context, dilation_h > 0 && dilation_w > 0,
-        errors::InvalidArgument("Dilated rates should be larger than 0."));
-
-    OP_REQUIRES_OK(context, context->GetAttr("padding", &padding_));
-  }
-  void Compute(OpKernelContext* context) override{
-        double begin = realtime();
-    const Tensor& input = context->input(0);
-    const Tensor& filter_sizes = context->input(1);
-    const Tensor& out_backprop = context->input(2);
 
     OP_REQUIRES(
         context, TensorShapeUtils::IsVector(filter_sizes.shape()),
@@ -1169,7 +711,6 @@ public:
 
     OP_REQUIRES_OK(context, TensorShapeUtils::MakeShape(
                                 filter_sizes.vec<int32>(), &filter_shape));
-    // TensorShapeUtils::MakeShape(filter_sizes.vec<int32>(), &filter_shape);
     Tensor* filter_backprop = nullptr;
     
     OP_REQUIRES_OK(context,
@@ -1180,12 +721,6 @@ public:
       return;
     }
 
-    // If input is empty, set gradients to zero.
-    // if (input.shape().num_elements() == 0) {
-    //   functor::SetZeroFunctor<Device, T> f;
-    //   f(context->eigen_device<Device>(), filter_backprop->flat<f>());
-    //   return;
-    // }
     ConvBackpropDimensions dims;
     OP_REQUIRES_OK(context,
                    ConvBackpropComputeDimensions(
@@ -1234,87 +769,143 @@ public:
       filter_top_offset =
           ((dims.output_size(0) - 1) * stride_rows + dims.filter_size(0) - dims.input_size(0) + 1) /
           2;
-      // printf("filter_left_offset = %d, out_rows = %d, stride_cols = %d, filter_rows = %d, input_rows = %d\n",
-      //             (int)filter_left_offset,(int)dims.output_size(0),(int)stride_cols,(int)dims.filter_size(0),(int)dims.input_size(0));
       filter_left_offset= ((dims.output_size(1) - 1) * stride_cols + dims.filter_size(1) -
                            dims.input_size(1) + 1) /                  
                           2;
       filter_left_offset = filter_left_offset>0?filter_left_offset:0;
       filter_top_offset = filter_top_offset>0?filter_top_offset:0;
-      // printf("filter_top_offset = %d, out_cols = %d, stride_rows = %d, filter_cols = %d, input_cols = %d\n",
-      //             (int)filter_top_offset,(int)dims.output_size(1),(int)stride_rows,(int)dims.filter_size(1),(int)dims.input_size(1));
     } else {
       filter_top_offset =
           ((dims.output_size(0) - 1) * stride_rows + dims.filter_size(0) - dims.input_size(0)) / 2;
-      // printf("filter_left_offset = %d, out_rows = %d, stride_cols = %d, filter_rows = %d, input_rows = %d\n",
-      //             (int)filter_left_offset,(int)dims.output_size(0),(int)stride_cols,(int)dims.filter_size(0),(int)dims.input_size(0));
       filter_left_offset=
           ((dims.output_size(1) - 1) * stride_cols + dims.filter_size(1) - dims.input_size(1)) /
           2;
-      // printf("filter_top_offset = %d, out_cols = %d, stride_rows = %d, filter_cols = %d, input_cols = %d\n",
-      //             (int)filter_top_offset,(int)dims.output_size(1),(int)stride_rows,(int)dims.filter_size(1),(int)dims.input_size(1));
       filter_left_offset = filter_left_offset>0?filter_left_offset:0;
       filter_top_offset = filter_top_offset>0?filter_top_offset:0;
 
     }
-    // printf("Filter left offset %d, Filter top offset %d\n",(int)filter_left_offset,(int)filter_top_offset);
     Tensor im2col;
-    OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
+    OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), 
     TensorShape({input_batch*input_channel*((grad_height-1)*stride_rows+1)*((grad_width-1)*stride_cols+1)*filter_width*filter_height})
     , &im2col));
-    auto im2col_data = im2col.flat<float>().data();
-    auto grad = out_backprop.flat<float>().data();
-    auto in_data = input.flat<float>().data();
-    auto out = filter_backprop->template flat<float>().data();
-    double end = realtime();
-  #ifdef PROFILE
-   cout << "Backprop filter grad Time difference = " << end - begin << endl;
-   cout << "Backpropfilter shape: Input " << input_batch << " " << input_height << " " << input_width << " " << input_channel \
-  << " Output " << input_batch << " " << grad_height << " " << grad_width << " " << grad_channel << endl;
-   #endif
+    auto im2col_data = im2col.flat<T>().data();
+    auto grad = out_backprop.flat<T>().data();
+    auto in_data = input.flat<T>().data();
+    auto out = filter_backprop->template flat<T>().data();
    
-//auto const oneinputsize = dimensions.input_rows * dimensions.input_cols * dimensions.in_depth;
-  //auto const oneoutputsize = dimensions.out_rows* dimensions.out_cols * dimensions.out_depth;
-   //loop1D(i,input_height){
-    ConvamFilterGradKernelLauncher(
-            context->eigen_device<GPUDevice>(),
-      in_data,
-      grad,//i*oneoutputsize,
-      im2col_data,
-      input_height,
-      input_width,
-      input_batch,
-      input_channel,
-      grad_width,
-      grad_height,
-      grad_channel,
-      filter_left_offset,
-      filter_top_offset,
-      stride_rows,
-      stride_cols,
-      filter_width,
-      filter_height,
-      out
-    );//}
-
+    ConvamFilterGradFunctor<Device, T>()(
+            context->eigen_device<Device>(),
+            in_data,
+            grad,
+            im2col_data,
+            input_height,
+            input_width,
+            input_batch,
+            input_channel,
+            grad_width,
+            grad_height,
+            grad_channel,
+            filter_left_offset,
+            filter_top_offset,
+            stride_rows,
+            stride_cols,
+            filter_width,
+            filter_height,
+            out
+            );
   }
   private:
   std::vector<int32> dilations_;
   std::vector<int32> strides_;
   Padding padding_;
   TensorFormat data_format_;
-  TF_DISALLOW_COPY_AND_ASSIGN(ConvamFilterGradOpGPU);
+  TF_DISALLOW_COPY_AND_ASSIGN(ConvamFilterGradOp);
  
 };
-REGISTER_KERNEL_BUILDER(Name("ConvamFilterGrad").Device(DEVICE_GPU).HostMemory("filter_sizes"), ConvamFilterGradOpGPU);
+// For backpropagation:filter
+// Register the CPU kernels.
+#define REGISTER_CPU_FILTERGRAD(T)                                          \
+  REGISTER_KERNEL_BUILDER(                                       \
+      Name("ConvamFilterGrad").Device(DEVICE_CPU).TypeConstraint<T>("T"), \
+      ConvamFilterGradOp<CPUDevice, T>);
+REGISTER_CPU_FILTERGRAD(float);
+REGISTER_CPU_FILTERGRAD(int32);
+// Register the GPU kernels.
+#ifdef GOOGLE_CUDA
+#define REGISTER_GPU_FILTERGRAD(T)                                          \
+  /* Declare explicit instantiations in kernel_example.cu.cc. */ \
+  extern template class ConvamFilterGradFunctor<GPUDevice, T>;            \
+  REGISTER_KERNEL_BUILDER(                                       \
+      Name("Convam").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
+      ConvamFilterGradOp<GPUDevice, T>);
+REGISTER_GPU_FILTERGRAD(float);
+REGISTER_GPU_FILTERGRAD(int32);
+#endif  // GOOGLE_CUDA
 
+// CPU specisialization for ConvamInputGrad
+template <typename T>
+struct ConvamInputGradFunctor<CPUDevice, T> {
+  void operator()(const CPUDevice& d, const T* grad, T* im2col, 
+          const int hole_grad_width, const int hole_grad_height, 
+          const int pad_top, const int pad_left, const T* filter, T* rsfilter,
+          const int filter_rows, const int filter_cols, const int out_depth,
+          const int stride_rows, const int stride_cols, const int batch,
+          const int input_rows, const int input_cols, const int in_depth,
+          T* output, const int out_rows, const int out_cols
+          ){
+    for (int ibatch = 0; ibatch < batch; ++ibatch) {
+        for (int out_y = 0; out_y < input_rows; ++out_y) {
+            for (int out_x = 0; out_x < input_cols; ++out_x) {
+                for (int in_channel = 0; in_channel < in_depth; ++in_channel) {
+                    const int in_x_origin = out_x  - pad_left;
+                    const int in_y_origin = out_y  - pad_top;  
+                    T total(0);
+                    for (int filter_y = 0; filter_y < filter_rows; ++filter_y) {
+                        for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
+                            for (int out_channel = 0; out_channel < out_depth;
+                                ++out_channel) {
+                                const int in_x = in_x_origin + filter_x;
+                                const int in_y = in_y_origin + filter_y;
+                                T input_value;
+                                if((in_x >= 0) && (in_x < hole_grad_width) && (in_y >= 0) &&
+                                (in_y < hole_grad_height)){
+                                    const float i_y = (in_y)/(float)stride_rows ;
+                                    const float i_x = (in_x)/(float)stride_cols ;
+                                    const bool y = fmod(i_y,1)==float(0);
+                                    const bool x = fmod(i_x,1)==float(0);
+                                    input_value = (x&y) ?
+                                    grad[(batch *out_cols*out_rows*out_depth) +
+                                  (int(i_y) * out_cols*out_depth) +
+                                  (int(i_x) * out_depth) + out_channel]:0;
 
+                                } else {
+                                    input_value = T(0);
+                                }
 
+                                const T filter_v = filter[((filter_rows-1-filter_y) * filter_cols * in_depth*out_depth) +
+                                                    ((filter_cols-1-filter_x) * in_depth*out_depth) +
+                                                    (in_channel * out_depth) + out_channel];
+
+                                total += (input_value*filter_v);
+                
+                            }
+                        }
+                    }
+                    output[(ibatch * input_cols * input_rows * in_depth) +
+                        (out_y * input_cols * in_depth) +
+                        (out_x *in_depth) + in_channel] = total;
+                }
+            }
+        }
+    }
+  } 
+};
 REGISTER_OP("ConvamInputGrad")
     .Input("input_sizes: int32")
-    .Input("filter: float")
-    .Input("out_backprop: float")
-    .Output("grad_input: float")
+    .Attr("T: numbertype")
+    .Input("filter: T")
+    .Input("out_backprop: T")
+    .Output("grad_input: T")
     .Attr("strides: list(int)")
     .Attr(GetPaddingAttrString())
     .Attr(GetConvnetDataFormatAttrString())
@@ -1326,458 +917,149 @@ REGISTER_OP("ConvamInputGrad")
       c->set_output(0, s);
       return Status::OK();
     });
-class ConvamInputGradOpCPU : public OpKernel {
- public:
-  explicit ConvamInputGradOpCPU(OpKernelConstruction* context)
-      : OpKernel(context) {
-    string data_format;
-    OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
-    OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
-                errors::InvalidArgument("Invalid data format"));
-    OP_REQUIRES_OK(context, context->GetAttr("strides", &strides_));
-    OP_REQUIRES(context, strides_.size() == 4,
-                errors::InvalidArgument("Sliding window strides field must "
-                                        "specify 4 dimensions"));
-    int stride_n = GetTensorDim(strides_, data_format_, 'N');
-    int stride_c = GetTensorDim(strides_, data_format_, 'C');
-    int stride_h = GetTensorDim(strides_, data_format_, 'H');
-    int stride_w = GetTensorDim(strides_, data_format_, 'W');
-    OP_REQUIRES(
-        context, (stride_n == 1 && stride_c == 1),
-        errors::InvalidArgument("Current implementation does not yet support "
-                                "strides in the batch and depth dimensions."));
-    OP_REQUIRES(context, stride_h > 0 && stride_w > 0,
-                errors::InvalidArgument(
-                    "Row and column strides should be larger than 0."));
-    OP_REQUIRES_OK(context, context->GetAttr("dilations", &dilations_));
-    OP_REQUIRES(context, dilations_.size() == 4,
-                errors::InvalidArgument("Sliding window dilations field must "
-                                        "specify 4 dimensions"));
-    int dilation_n = GetTensorDim(dilations_, data_format_, 'N');
-    int dilation_c = GetTensorDim(dilations_, data_format_, 'C');
-    int dilation_h = GetTensorDim(dilations_, data_format_, 'H');
-    int dilation_w = GetTensorDim(dilations_, data_format_, 'W');
-    OP_REQUIRES(context, (dilation_n == 1 && dilation_c == 1),
-                errors::InvalidArgument(
-                    "Current implementation does not yet support "
-                    "dilations in the batch and depth dimensions."));
-    OP_REQUIRES(
-        context, dilation_h > 0 && dilation_w > 0,
-        errors::InvalidArgument("Dilated rates should be larger than 0."));
-
-    OP_REQUIRES_OK(context, context->GetAttr("padding", &padding_));
-  }
-
-  void Compute(OpKernelContext* context) override {
-    const Tensor& input_sizes = context->input(0);
-    const Tensor& filter = context->input(1);
-    const Tensor& out_backprop = context->input(2);
-    OP_REQUIRES(
-        context, TensorShapeUtils::IsVector(input_sizes.shape()),
-        errors::InvalidArgument(
-            "Conv2DBackpropInput: input_sizes input must be 1-dim, not ",
-            input_sizes.dims()));
-    TensorShape input_shape;
-    OP_REQUIRES_OK(context, TensorShapeUtils::MakeShape(
-                                input_sizes.vec<int32>(), &input_shape));
-
-    Tensor* in_backprop = nullptr;
-    OP_REQUIRES_OK(context,
-                   context->allocate_output(0, input_shape, &in_backprop));
+template <typename Device, typename T>
+class ConvamInputGradOp: public OpKernel {
+    public:
+     explicit ConvamInputGradOp(OpKernelConstruction* context): OpKernel(context) {
+       string data_format;
+       OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
+       OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
+                   errors::InvalidArgument("Invalid data format"));
+       OP_REQUIRES_OK(context, context->GetAttr("strides", &strides_));
+       OP_REQUIRES(context, strides_.size() == 4,
+                   errors::InvalidArgument("Sliding window strides field must "
+                                           "specify 4 dimensions"));
+       int stride_n = GetTensorDim(strides_, data_format_, 'N');
+       int stride_c = GetTensorDim(strides_, data_format_, 'C');
+       int stride_h = GetTensorDim(strides_, data_format_, 'H');
+       int stride_w = GetTensorDim(strides_, data_format_, 'W');
+       OP_REQUIRES(
+           context, (stride_n == 1 && stride_c == 1),
+           errors::InvalidArgument("Current implementation does not yet support "
+                                   "strides in the batch and depth dimensions."));
+       OP_REQUIRES(context, stride_h > 0 && stride_w > 0,
+                   errors::InvalidArgument(
+                       "Row and column strides should be larger than 0."));
+       OP_REQUIRES_OK(context, context->GetAttr("dilations", &dilations_));
+       OP_REQUIRES(context, dilations_.size() == 4,
+                   errors::InvalidArgument("Sliding window dilations field must "
+                                           "specify 4 dimensions"));
+       int dilation_n = GetTensorDim(dilations_, data_format_, 'N');
+       int dilation_c = GetTensorDim(dilations_, data_format_, 'C');
+       int dilation_h = GetTensorDim(dilations_, data_format_, 'H');
+       int dilation_w = GetTensorDim(dilations_, data_format_, 'W');
+       OP_REQUIRES(context, (dilation_n == 1 && dilation_c == 1),
+                   errors::InvalidArgument(
+                       "Current implementation does not yet support "
+                       "dilations in the batch and depth dimensions."));
+       OP_REQUIRES(
+           context, dilation_h > 0 && dilation_w > 0,
+           errors::InvalidArgument("Dilated rates should be larger than 0."));
     
-    // If there is nothing to compute, return.
-    if (input_shape.num_elements() == 0) {
-      return;
-    }
-    ConvBackpropDimensions dims;
-    OP_REQUIRES_OK(context,
-                   ConvBackpropComputeDimensions(
-                       "Conv2DCustomBackpropInput", /*num_spatial_dims=*/2,
-                       input_shape, filter.shape(), out_backprop.shape(),
-                       strides_, padding_, data_format_, &dims));
-
-
-    const int filter_width = (int)dims.filter_size(1);
-    const int filter_height = (int)dims.filter_size(0);
-    const int output_channel = (int)dims.out_depth;
-
-    const int input_batch = input_sizes.vec<int32>().data()[0];
-    const int input_width = input_sizes.vec<int32>().data()[2];
-    const int input_height = input_sizes.vec<int32>().data()[1];
-    const int input_channel = input_sizes.vec<int32>().data()[3];
-
-    //get grad dim
-    const int grad_batch = GetTensorDim(out_backprop,data_format_,'N');
-    const int grad_width = GetTensorDim(out_backprop,data_format_,'W');
-    const int grad_height = GetTensorDim(out_backprop,data_format_,'H');
-    const int grad_channel = GetTensorDim(out_backprop,data_format_,'C');
-    // printf("input size %d\n",input_sizes.vec<int32>().data()[0]);
-    // printf("input size %d\n",input_sizes.vec<int32>().data()[1]);
-    // printf("input size %d\n",input_sizes.vec<int32>().data()[2]);
-    // printf("input size %d\n",input_sizes.vec<int32>().data()[3]);
-
-    // For now we take the stride from the second and third dimensions only (we
-    // do not support striding on the batch or depth dimension).
-    const int stride_rows = GetTensorDim(strides_, data_format_, 'H');
-    const int stride_cols = GetTensorDim(strides_, data_format_, 'W');
-    const int dilation_rows = GetTensorDim(dilations_, data_format_, 'H');
-    const int dilation_cols = GetTensorDim(dilations_, data_format_, 'W');
-
-    const int hole_grad_width = (grad_width-1)*stride_cols+1;
-    const int hole_grad_height = (grad_height-1)*stride_rows+1;
-
-
-    int64 forw_pad_top, forw_pad_bottom;
-    int64 forw_pad_left, forw_pad_right;
-    OP_REQUIRES_OK(
-        context,
-        GetWindowedOutputSizeVerbose(
-            dims.spatial_dims[0].input_size, dims.spatial_dims[0].filter_size,
-            dims.spatial_dims[0].stride, padding_,
-            &dims.spatial_dims[0].output_size, &forw_pad_top, &forw_pad_bottom));
-    OP_REQUIRES_OK(
-        context,
-        GetWindowedOutputSizeVerbose(
-            dims.spatial_dims[1].input_size, dims.spatial_dims[1].filter_size,
-            dims.spatial_dims[1].stride, padding_,
-            &dims.spatial_dims[1].output_size, &forw_pad_left, &forw_pad_right));
-    const int back_pad_top = filter_height - 1 - (int)forw_pad_top;
-    const int back_pad_left = filter_width - 1 - (int)forw_pad_left;
-    const int back_pad_bottom = input_height - (grad_height-1)*stride_rows-2-back_pad_top+filter_height;
-    const int back_pad_right = input_width - (grad_width-1)*stride_cols-2-back_pad_left+filter_width;
-
-    // printf("back_pad_top %d\n",back_pad_top);
-    // printf("back_pad_left %d\n",back_pad_left);
-    // printf("back_pad_bottom %d,input_height %d, grad_height %d, stride_rows %d,filter_height %d \n",
-    // back_pad_bottom,input_height,grad_height,stride_rows,filter_height);
-    // printf("back_pad_right %d\n",back_pad_right);
-
-        //grab input and output
-    auto grad = out_backprop.flat<float>().data();
-    auto in_data = filter.flat<float>().data();
-    auto out = in_backprop->template flat<float>().data();
-
-
-    for (int batch = 0; batch < input_batch; ++batch) {
-      for (int out_y = 0; out_y < input_height; ++out_y) {
-        for (int out_x = 0; out_x < input_width; ++out_x) {
-          for (int in_channel = 0; in_channel < input_channel; ++in_channel) {
-            const int in_x_origin = out_x  - back_pad_left;
-            const int in_y_origin = out_y  - back_pad_top;  
-            // printf("in_x %d\n",in_x_origin);
-            // printf("in_y %d\n",in_y_origin);
-            float total(0);
-            for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
-              for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
-                for (int out_channel = 0; out_channel < output_channel;
-                     ++out_channel) {
-                    const int in_x = in_x_origin + filter_x;
-                    const int in_y = in_y_origin + filter_y;
-                    // printf("in_x %d\n",in_x);
-                    // printf("in_y %d\n",in_y);
-                    float input_value;
-                    if((in_x >= 0) && (in_x < hole_grad_width) && (in_y >= 0) &&
-                      (in_y < hole_grad_height)){
-                        const float i_y = (in_y)/(float)stride_rows ;
-                        const float i_x = (in_x)/(float)stride_cols ;
-                        const bool y = fmod(i_y,1)==float(0);
-                        const bool x = fmod(i_x,1)==float(0);
-                        input_value = (x&y) ?
-                      grad[(batch *grad_width*grad_height*output_channel) +
-                                  (int(i_y) * grad_width*output_channel) +
-                                  (int(i_x) * output_channel) + out_channel]:0;
-
-                    } else {
-                      input_value = float(0);
-                    }
-
-                    const float filter = in_data[((filter_height-1-filter_y) * filter_width * input_channel*output_channel) +
-                                  ((filter_width-1-filter_x) * input_channel*output_channel) +
-                                  (in_channel * output_channel) + out_channel];
-
-                    total += (input_value*filter);
-                
-                }
-              }
-            }
-            out[(batch * input_width * input_height * input_channel) +
-                        (out_y * input_width * input_channel) +
-                        (out_x *input_channel) + in_channel] = total;
-          }
+       OP_REQUIRES_OK(context, context->GetAttr("padding", &padding_));
+     }
+    
+     void Compute(OpKernelContext* context) override {
+        const Tensor& input_sizes = context->input(0);
+        const Tensor& filter = context->input(1);
+        const Tensor& out_backprop = context->input(2);
+        OP_REQUIRES(
+            context, TensorShapeUtils::IsVector(input_sizes.shape()),
+            errors::InvalidArgument(
+                "Conv2DBackpropInput: input_sizes input must be 1-dim, not ",
+                input_sizes.dims()));
+        TensorShape input_shape;
+        OP_REQUIRES_OK(context, TensorShapeUtils::MakeShape(
+                                    input_sizes.vec<int32>(), &input_shape));
+     
+        Tensor* in_backprop = nullptr;
+        OP_REQUIRES_OK(context,
+                       context->allocate_output(0, input_shape, &in_backprop));
+        
+        if (input_shape.num_elements() == 0) {
+          return;
         }
-      }
-    }
-
-  // std::fstream fs;
-  //   fs.open("cpu_input_log", std::fstream::in | std::fstream::out | std::fstream::app);
-  //   // ----------test for forward propagation-----------
-  //   for(int i = 0; i < input_batch; i++){
-  //     for(int j = 0; j < input_height; j++){
-  //       for(int k = 0; k < input_width; k++){
-  //         for(int l = 0; l < input_channel; l++){
-  //             // printf("(%d, %d, %d, %d) %f\n",i,j,k,l,output_data[(i * dimensions.out_cols * dimensions.out_rows * dimensions.out_depth) +
-  //             //           (j * dimensions.out_cols * dimensions.out_depth) +
-  //             //           (k * dimensions.out_depth) + l]);
-  //             fs << i <<", " << j << ", " <<k<<", " << l << ",  " << out[(i* input_height * input_width *input_channel) +
-  //                       (j * input_width *input_channel) +
-  //                       (k *input_channel) + l]<<"\n";
-              
-  //         }
-  //       }
-  //     }
-  //   }
-  //   printf("From CPU Input\n");
-  //   fs << "From CPU\n";
-  //   fs.close();
-  }
-
-  private:
-  std::vector<int32> dilations_;
-  std::vector<int32> strides_;
-  Padding padding_;
-
-  TensorFormat data_format_;
-
-  TF_DISALLOW_COPY_AND_ASSIGN(ConvamInputGradOpCPU);
-};
-
-
-
-
-REGISTER_KERNEL_BUILDER(Name("ConvamInputGrad").Device(DEVICE_CPU), ConvamInputGradOpCPU);
-
-
-void ConvamInputGradKernelLauncher(
-      // grad needs pading and holes
-      // im2col input
-      const GPUDevice &d,
-      const float* grad,
-      float* im2col,
-      const int real_grad_height,
-      const int real_grad_width,
-      const int hole_grad_width,
-      const int hole_grad_height,
-      const int back_pad_top,
-      const int back_pad_left,
-      const int back_pad_bottom,
-      const int back_pad_right,
-      // reverse
-      const float* filter,
-      float* rsfilter,
-      const int filter_height,
-      const int filter_width,
-      const int output_channel,
-      const int stride_rows,
-      const int stride_cols,
-      // input related
-      const int input_batch,
-      const int input_height,
-      const int input_width,
-      const int input_channel,
-      float* output
-    );
-
-
-class ConvamInputGradOpGPU : public OpKernel {
- public:
-  explicit ConvamInputGradOpGPU(OpKernelConstruction* context)
-      : OpKernel(context) {
-            
-    string data_format;
-    OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
-    OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
-                errors::InvalidArgument("Invalid data format"));
-    OP_REQUIRES_OK(context, context->GetAttr("strides", &strides_));
-    OP_REQUIRES(context, strides_.size() == 4,
-                errors::InvalidArgument("Sliding window strides field must "
-                                        "specify 4 dimensions"));
-    int stride_n = GetTensorDim(strides_, data_format_, 'N');
-    int stride_c = GetTensorDim(strides_, data_format_, 'C');
-    int stride_h = GetTensorDim(strides_, data_format_, 'H');
-    int stride_w = GetTensorDim(strides_, data_format_, 'W');
-    OP_REQUIRES(
-        context, (stride_n == 1 && stride_c == 1),
-        errors::InvalidArgument("Current implementation does not yet support "
-                                "strides in the batch and depth dimensions."));
-    OP_REQUIRES(context, stride_h > 0 && stride_w > 0,
-                errors::InvalidArgument(
-                    "Row and column strides should be larger than 0."));
-    OP_REQUIRES_OK(context, context->GetAttr("dilations", &dilations_));
-    OP_REQUIRES(context, dilations_.size() == 4,
-                errors::InvalidArgument("Sliding window dilations field must "
-                                        "specify 4 dimensions"));
-    int dilation_n = GetTensorDim(dilations_, data_format_, 'N');
-    int dilation_c = GetTensorDim(dilations_, data_format_, 'C');
-    int dilation_h = GetTensorDim(dilations_, data_format_, 'H');
-    int dilation_w = GetTensorDim(dilations_, data_format_, 'W');
-    OP_REQUIRES(context, (dilation_n == 1 && dilation_c == 1),
-                errors::InvalidArgument(
-                    "Current implementation does not yet support "
-                    "dilations in the batch and depth dimensions."));
-    OP_REQUIRES(
-        context, dilation_h > 0 && dilation_w > 0,
-        errors::InvalidArgument("Dilated rates should be larger than 0."));
-
-    OP_REQUIRES_OK(context, context->GetAttr("padding", &padding_));
-  }
-
-  void Compute(OpKernelContext* context) override {
-    double begin = realtime();
-    const Tensor& input_sizes = context->input(0);
-    const Tensor& filter = context->input(1);
-    const Tensor& out_backprop = context->input(2);
-    OP_REQUIRES(
-        context, TensorShapeUtils::IsVector(input_sizes.shape()),
-        errors::InvalidArgument(
-            "Conv2DBackpropInput: input_sizes input must be 1-dim, not ",
-            input_sizes.dims()));
-    TensorShape input_shape;
-    OP_REQUIRES_OK(context, TensorShapeUtils::MakeShape(
-                                input_sizes.vec<int32>(), &input_shape));
-
-    Tensor* in_backprop = nullptr;
-    OP_REQUIRES_OK(context,
-                   context->allocate_output(0, input_shape, &in_backprop));
-    
-    // If there is nothing to compute, return.
-    if (input_shape.num_elements() == 0) {
-      return;
-    }
-    ConvBackpropDimensions dims;
-    OP_REQUIRES_OK(context,
-                   ConvBackpropComputeDimensions(
-                       "Conv2DCustomBackpropInput", /*num_spatial_dims=*/2,
-                       input_shape, filter.shape(), out_backprop.shape(),
-                       strides_, padding_, data_format_, &dims));
-
-
-    const int filter_width = (int)dims.filter_size(1);
-    const int filter_height = (int)dims.filter_size(0);
-    const int output_channel = (int)dims.out_depth;
-
-    const int input_batch = input_sizes.vec<int32>().data()[0];
-    const int input_width = input_sizes.vec<int32>().data()[2];
-    const int input_height = input_sizes.vec<int32>().data()[1];
-    const int input_channel = input_sizes.vec<int32>().data()[3];
-
-    //get grad dim
-    const int grad_batch = GetTensorDim(out_backprop,data_format_,'N');
-    const int grad_width = GetTensorDim(out_backprop,data_format_,'W');
-    const int grad_height = GetTensorDim(out_backprop,data_format_,'H');
-    const int grad_channel = GetTensorDim(out_backprop,data_format_,'C');
-
-    const int stride_rows = GetTensorDim(strides_, data_format_, 'H');
-    const int stride_cols = GetTensorDim(strides_, data_format_, 'W');
-    const int dilation_rows = GetTensorDim(dilations_, data_format_, 'H');
-    const int dilation_cols = GetTensorDim(dilations_, data_format_, 'W');
-
-    const int hole_grad_width = (grad_width-1)*stride_cols+1;
-    const int hole_grad_height = (grad_height-1)*stride_rows+1;
-
-
-    int64 forw_pad_top, forw_pad_bottom;
-    int64 forw_pad_left, forw_pad_right;
-    OP_REQUIRES_OK(
-        context,
-        GetWindowedOutputSizeVerbose(
-            dims.spatial_dims[0].input_size, dims.spatial_dims[0].filter_size,
-            dims.spatial_dims[0].stride, padding_,
-            &dims.spatial_dims[0].output_size, &forw_pad_top, &forw_pad_bottom));
-    OP_REQUIRES_OK(
-        context,
-        GetWindowedOutputSizeVerbose(
-            dims.spatial_dims[1].input_size, dims.spatial_dims[1].filter_size,
-            dims.spatial_dims[1].stride, padding_,
-            &dims.spatial_dims[1].output_size, &forw_pad_left, &forw_pad_right));
-    const int back_pad_top = filter_height - 1 - (int)forw_pad_top;
-    const int back_pad_left = filter_width - 1 - (int)forw_pad_left;
-    const int back_pad_bottom = input_height - (grad_height-1)*stride_rows-2-back_pad_top+filter_height;
-    const int back_pad_right = input_width - (grad_width-1)*stride_cols-2-back_pad_left+filter_width;
-    // std::cout << "back_pad_top " << back_pad_top << "back_pad_left " <<back_pad_left << "back_pad_bottom " << back_pad_bottom<< "back_pad_right " << back_pad_right<< "\n";
-
-    Tensor rsfilter;
-    OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
-    TensorShape({output_channel*filter_width*filter_height*input_channel})
-    , &rsfilter));
-    auto grad = out_backprop.flat<float>().data();
-    auto in_data = filter.flat<float>().data();
-    auto out = in_backprop->template flat<float>().data();
-    auto rsfilter_data = rsfilter.flat<float>().data();
-    double end = realtime();
-
-    #ifdef PROFILE
-     cout << "backprop input grad preparation Time difference = " << end - begin << endl;
-     cout << "Backpropinput shape: Output " << input_batch << " " << hole_grad_height << " " << hole_grad_width << " " << output_channel \
-  << " filter " << filter_height<< " " << filter_width << " " << input_channel << " " << output_channel << endl;
-     #endif
-
-    auto const oneinputsize = input_height*input_width*input_channel; 
-    auto const oneoutputsize = grad_height*grad_width*output_channel; 
-    size_t const block_size = 16;
-    size_t const max_batch = (65536*block_size + 1 - block_size)/(input_height*input_width);
-    if (input_batch <= max_batch) {
+        ConvBackpropDimensions dims;
+        OP_REQUIRES_OK(context,
+                       ConvBackpropComputeDimensions(
+                           "Conv2DCustomBackpropInput", /*num_spatial_dims=*/2,
+                           input_shape, filter.shape(), out_backprop.shape(),
+                           strides_, padding_, data_format_, &dims));
+     
+     
+        const int filter_width = (int)dims.filter_size(1);
+        const int filter_height = (int)dims.filter_size(0);
+        const int output_channel = (int)dims.out_depth;
+     
+        const int input_batch = input_sizes.vec<int32>().data()[0];
+        const int input_width = input_sizes.vec<int32>().data()[2];
+        const int input_height = input_sizes.vec<int32>().data()[1];
+        const int input_channel = input_sizes.vec<int32>().data()[3];
+     
+        //get grad dim
+        const int grad_batch = GetTensorDim(out_backprop,data_format_,'N');
+        const int grad_width = GetTensorDim(out_backprop,data_format_,'W');
+        const int grad_height = GetTensorDim(out_backprop,data_format_,'H');
+        const int grad_channel = GetTensorDim(out_backprop,data_format_,'C');
+     
+        const int stride_rows = GetTensorDim(strides_, data_format_, 'H');
+        const int stride_cols = GetTensorDim(strides_, data_format_, 'W');
+        const int dilation_rows = GetTensorDim(dilations_, data_format_, 'H');
+        const int dilation_cols = GetTensorDim(dilations_, data_format_, 'W');
+     
+        const int hole_grad_width = (grad_width-1)*stride_cols+1;
+        const int hole_grad_height = (grad_height-1)*stride_rows+1;
+     
+     
+        int64 forw_pad_top, forw_pad_bottom;
+        int64 forw_pad_left, forw_pad_right;
+        OP_REQUIRES_OK(
+            context,
+            GetWindowedOutputSizeVerbose(
+                dims.spatial_dims[0].input_size, dims.spatial_dims[0].filter_size,
+                dims.spatial_dims[0].stride, padding_,
+                &dims.spatial_dims[0].output_size, &forw_pad_top, &forw_pad_bottom));
+        OP_REQUIRES_OK(
+            context,
+            GetWindowedOutputSizeVerbose(
+                dims.spatial_dims[1].input_size, dims.spatial_dims[1].filter_size,
+                dims.spatial_dims[1].stride, padding_,
+                &dims.spatial_dims[1].output_size, &forw_pad_left, &forw_pad_right));
+        const int back_pad_top = filter_height - 1 - (int)forw_pad_top;
+        const int back_pad_left = filter_width - 1 - (int)forw_pad_left;
+     
+        Tensor rsfilter;
+        OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), 
+        TensorShape({output_channel*filter_width*filter_height*input_channel})
+        , &rsfilter));
+        auto grad = out_backprop.flat<T>().data();
+        auto in_data = filter.flat<T>().data();
+        auto out = in_backprop->template flat<T>().data();
+        auto rsfilter_data = rsfilter.flat<T>().data();
+     
+        auto const oneinputsize = input_height*input_width*input_channel; 
+        auto const oneoutputsize = grad_height*grad_width*output_channel; 
+        size_t const block_size = 16;
+        size_t const max_batch = (65536*block_size + 1 - block_size)/(input_height*input_width);
         Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
-        TensorShape({output_channel*filter_width*filter_height*input_height*input_width*grad_batch})
-        , &im2col));
-        auto im2_col_data = im2col.flat<float>().data();
-        ConvamInputGradKernelLauncher(
-            // grad needs pading and holes
-            // im2col input
-            context->eigen_device<GPUDevice>(),
-            grad,
-            im2_col_data,
-            //unused
-            grad_height,
-            //unused
-            grad_width,
-            hole_grad_width,
-            hole_grad_height,
-            back_pad_top,
-            back_pad_left,
-            //unused
-            back_pad_bottom,
-            //unused
-            back_pad_right,
-            // reverse
-            in_data,
-            rsfilter_data,
-            filter_height,
-            filter_width,
-            output_channel,
-            stride_rows,
-            stride_cols,
-            // input related
-            input_batch,
-            input_height,
-            input_width,
-            input_channel,
-            out
-             );
-    } else {
-        Tensor im2col;
-        OP_REQUIRES_OK(context, context->allocate_temp(DT_FLOAT, 
-        TensorShape({output_channel*filter_width*filter_height*input_height*input_width*max_batch})
-        , &im2col));
-        auto im2_col_data = im2col.flat<float>().data();
-        loop1Da(i, input_batch, max_batch){
-            size_t const ibatch =  input_batch -1 - i >= max_batch ? max_batch : input_batch-i ;
-            ConvamInputGradKernelLauncher(
-                // grad needs pading and holes
-                // im2col input
-                context->eigen_device<GPUDevice>(),
-                grad+i*oneoutputsize,
-                im2_col_data,
-                grad_height,
-
-                grad_width,
+        if (input_batch <= max_batch) {
+            OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), 
+            TensorShape({output_channel*filter_width*filter_height*input_height*input_width*grad_batch})
+            , &im2col));
+        } else {
+            OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), 
+            TensorShape({output_channel*filter_width*filter_height*input_height*input_width*max_batch})
+            , &im2col));
+        }
+        auto im2col_data = im2col.flat<T>().data();
+        ConvamInputGradFunctor<Device, T>()(
+                context->eigen_device<Device>(),
+                grad,
+                im2col_data,
                 hole_grad_width,
                 hole_grad_height,
                 back_pad_top,
                 back_pad_left,
-                back_pad_bottom,
-                back_pad_right,
-                // reverse
                 in_data,
                 rsfilter_data,
                 filter_height,
@@ -1785,19 +1067,15 @@ class ConvamInputGradOpGPU : public OpKernel {
                 output_channel,
                 stride_rows,
                 stride_cols,
-                // input related
-                ibatch,//input_batch,
+                input_batch,
                 input_height,
                 input_width,
                 input_channel,
-                out+i*oneinputsize
-                 );
-        
-        }
-    }
-
-  }
-
+                out,
+                grad_height,
+                grad_width
+                );
+     }
   private:
   std::vector<int32> dilations_;
   std::vector<int32> strides_;
@@ -1805,6 +1083,25 @@ class ConvamInputGradOpGPU : public OpKernel {
 
   TensorFormat data_format_;
 
-  TF_DISALLOW_COPY_AND_ASSIGN(ConvamInputGradOpGPU);
-};
-REGISTER_KERNEL_BUILDER(Name("ConvamInputGrad").Device(DEVICE_GPU).HostMemory("input_sizes"), ConvamInputGradOpGPU);
+  TF_DISALLOW_COPY_AND_ASSIGN(ConvamInputGradOp);
+}; 
+// For backpropagation:input
+// Register the CPU kernels.
+#define REGISTER_CPU_INPUTGRAD(T)                                          \
+  REGISTER_KERNEL_BUILDER(                                       \
+      Name("ConvamInputGrad").Device(DEVICE_CPU).TypeConstraint<T>("T"), \
+      ConvamInputGradOp<CPUDevice, T>);
+REGISTER_CPU_INPUTGRAD(float);
+REGISTER_CPU_INPUTGRAD(int32);
+
+// Register the GPU kernels.
+#ifdef GOOGLE_CUDA
+#define REGISTER_GPU_INPUTGRAD(T)                                          \
+  /* Declare explicit instantiations in kernel_example.cu.cc. */ \
+  extern template class ConvamInputGradFunctor<GPUDevice, T>;            \
+  REGISTER_KERNEL_BUILDER(                                       \
+      Name("ConvamInputGrad").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
+      ConvamInputGradOp<GPUDevice, T>);
+REGISTER_GPU_INPUTGRAD(float);
+REGISTER_GPU_INPUTGRAD(int32);
+#endif  // GOOGLE_CUDA
