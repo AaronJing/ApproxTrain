@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
+
+typedef int32_t int32;
+
 template <typename T>
 __global__ void reverseNswapdim23(size_t height, size_t width, size_t n_channels, size_t n_filters, T* dest, const T* src ){
     size_t pixel_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -13,3 +16,6 @@ __global__ void reverseNswapdim23(size_t height, size_t width, size_t n_channels
         }
     }
 }
+
+template __global__ void reverseNswapdim23<float>(size_t height, size_t width, size_t n_channels, size_t n_filters, float* dest, const float* src );
+template __global__ void reverseNswapdim23<int32>(size_t height, size_t width, size_t n_channels, size_t n_filters, int32* dest, const int32* src );

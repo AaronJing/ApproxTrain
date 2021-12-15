@@ -20,7 +20,6 @@
 #include <fstream>
 #include <chrono>
 #include <sys/time.h>
-#include "cuda/gpu_kernel_helper.h"
 using namespace std;
 using namespace tensorflow;
 using GPUDevice = Eigen::GpuDevice;

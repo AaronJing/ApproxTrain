@@ -36,6 +36,9 @@ all: $(BINARY)
 $(BINARY): $(OBJ) 
 	$(CXX) $(CFLAGS) -shared $(OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
 
+test_bin: $(OBJ) 
+	$(CXX)  $(CFLAGS) $(CPPFLAGS) $(OBJ) test/test.cpp $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
+
 Convam.o: Convam.cc Convam.h
 	$(CXX) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
 

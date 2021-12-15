@@ -7,11 +7,14 @@
 //#include <iostream>
 //#include <chrono>
 //#include <sys/time.h>
+
 #include "gpu_kernel_helper.h"
 #include "error.cuh"
 #include "gemm.cuh"
 #include "reverseNswapdim23.cuh"
 #include "../Convam.h"
+
+using namespace tensorflow;
 //using namespace std;
 #define THREADS_PER_BLOCK 1024
 #define BLOCK_SIZE 1024
@@ -343,7 +346,7 @@ __global__ void im2col_filtergrad(const T *in, int batch,
 template <typename T>
 void im2colLauncher_filtergrad(
     const GPUDevice &d,
-    const float* im,
+    const T* im,
     const int batch,
     const int in_row,
     const int in_col,
@@ -524,7 +527,7 @@ void ConvamInputGradKernelLauncher(
     const int hole_grad_height,
     const int back_pad_top,
     const int back_pad_left,
-    const float* filter,
+    const T* filter,
     //reverse and swap dimension 2 and 3 of the filters.s
     T* rsfilter,
     const int filter_height,
@@ -580,6 +583,7 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
     size_t const max_batch = (65536*block_size + 1 - block_size)/
         (input_rows*input_cols);
     if (batch <= max_batch) {
+        
         ConvamInputGradKernelLauncher<T>(
                 d, 
                 grad, 
@@ -628,3 +632,9 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
         }
     }
 }
+template struct ConvamInputGradFunctor<GPUDevice, float>;
+template struct ConvamInputGradFunctor<GPUDevice, int32>;
+template struct ConvamFilterGradFunctor<GPUDevice, float>;
+template struct ConvamFilterGradFunctor<GPUDevice, int32>;
+template struct ConvamFunctor<GPUDevice, float>;
+template struct ConvamFunctor<GPUDevice, int32>;

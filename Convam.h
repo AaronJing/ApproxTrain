@@ -75,6 +75,8 @@ struct ConvamFilterGradFunctor<Eigen::GpuDevice, T>{
           T* output
           ); 
 };
+
+
 #endif
 
 #endif 
