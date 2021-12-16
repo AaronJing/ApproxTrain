@@ -836,7 +836,7 @@ REGISTER_CPU_FILTERGRAD(int32);
   /* Declare explicit instantiations in kernel_example.cu.cc. */ \
   extern template class ConvamFilterGradFunctor<GPUDevice, T>;            \
   REGISTER_KERNEL_BUILDER(                                       \
-      Name("Convam").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
+      Name("ConvamFilterGrad").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
       ConvamFilterGradOp<GPUDevice, T>);
 REGISTER_GPU_FILTERGRAD(float);
 REGISTER_GPU_FILTERGRAD(int32);
