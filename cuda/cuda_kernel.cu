@@ -20,12 +20,12 @@ using namespace tensorflow;
 #define BLOCK_SIZE 1024
 using GPUDevice = Eigen::GpuDevice;
 using CPUDevice = Eigen::ThreadPoolDevice;
-static inline double realtime(void) {
-    struct timeval tp;
-    struct timezone tzp;
-    gettimeofday(&tp, &tzp);
-    return tp.tv_sec + tp.tv_usec * 1e-6;
-}
+// static inline double realtime(void) {
+//     struct timeval tp;
+//     struct timezone tzp;
+//     gettimeofday(&tp, &tzp);
+//     return tp.tv_sec + tp.tv_usec * 1e-6;
+// }
 
 
 __device__ float bitmasking(float num){
@@ -40,12 +40,12 @@ __device__ float bitmasking(float num){
 //===============================IM2COL KERNEL=================================
 //=============================================================================
 template <typename T>
-__global__ void im2col(const T* in,int c, int w, int h, int ow, int oh, 
-        int kw, int kh, int pw, int ph, int sw, int sh, int dw, int dh, int po, 
+__global__ void im2col(const T* in,int c, int w, int h, int ow, int oh,
+        int kw, int kh, int pw, int ph, int sw, int sh, int dw, int dh, int po,
         int pc, T* out
         ) {
     unsigned pl = kw * kh * c;
-    for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; 
+    for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x;
             tId < pc*pl; tId += blockDim.x * gridDim.x) {
     unsigned patchId = (tId + po*pl) / pl;
     unsigned outB    = (patchId / ow) / oh;
@@ -124,7 +124,7 @@ void ConvamKernelLauncher(
     const int padding,
     T* output
   ){
- 
+
     if (filter_row == 1 && filter_col == 1 && stride_row == 1 &&
         stride_col == 1) {
         // The kernel is 1x1.
@@ -134,7 +134,7 @@ void ConvamKernelLauncher(
         const int lda = k;
         const int ldb = n;
         const int ldc = n;
-        const int size = m*n;
+        //const int size = m*n;
         dim3 blockSize(16, 16, 1);
         dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
         gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
@@ -150,7 +150,7 @@ void ConvamKernelLauncher(
          const int lda = k;
          const int ldb = out_depth;
          const int ldc = out_depth;
-         const int size = m*n;
+         //const int size = m*n;
          dim3 blockSize(16, 16, 1);
          dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
          gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
@@ -159,10 +159,10 @@ void ConvamKernelLauncher(
          return;
     }
     im2colLauncher<T>(d,inputs, batch, in_row, in_col, out_row, out_col,out_depth, in_depth, filter_row, filter_col, stride_row, stride_col, left_offset,top_offset, 1,1 ,im2col);
-    const size_t m = batch*out_row*out_col; 
-    const size_t n = out_depth; 
-    const size_t k = filter_col * filter_row * in_depth; 
-    const size_t lda = k; 
+    const size_t m = batch*out_row*out_col;
+    const size_t n = out_depth;
+    const size_t k = filter_col * filter_row * in_depth;
+    const size_t lda = k;
     const size_t ldb = out_depth;
     const size_t ldc = out_depth;
     dim3 blockSize(16, 16, 1);
@@ -176,10 +176,10 @@ void ConvamKernelLauncher(
 #define loop1Da(i,n,inc) for(int i = 0; i < n; i+=inc)
 // Define the GPU implementation that launches the CUDA kernel.
 template <typename T>
-void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d, 
-        const T* input_data, T* output_data, const int batch, 
-        const int out_rows, const int out_cols, const int out_depth, 
-        const int stride_cols, const int stride_rows, 
+void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
+        const T* input_data, T* output_data, const int batch,
+        const int out_rows, const int out_cols, const int out_depth,
+        const int stride_cols, const int stride_rows,
         const int filter_left_offset, const int filter_top_offset,
         const int filter_rows, const int filter_cols, const int in_depth,
         const int input_cols, const int input_rows, const T* filter,
@@ -189,11 +189,11 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
     //TODO Simplify the cases
     int const oneinputsize = input_rows * input_cols * in_depth;
     int const oneoutputsize = out_rows* out_cols * out_depth;
-    if(filter_cols == 1 && filter_rows == 1 && 
+    if(filter_cols == 1 && filter_rows == 1 &&
             stride_rows == 1 && stride_cols){
         size_t const block_size = 16;
         size_t const max_batch = (65536*block_size + 1 - block_size)/(input_rows*input_cols);
-        if (batch <= max_batch) {
+        if ((size_t)batch <= max_batch) {
             ConvamKernelLauncher<T>(d,
                     input_data,
                     filter,
@@ -216,7 +216,7 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     );
         } else {
             loop1Da(i, batch, max_batch) {
-                size_t const ibatch =  batch - 1 - i >= max_batch ? max_batch : batch - i;
+                size_t const ibatch =  (size_t)(batch - 1 - i) >= max_batch ? max_batch : batch - i;
                 ConvamKernelLauncher<T>(d,
                     input_data + i * oneinputsize,
                     filter,
@@ -238,7 +238,7 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     output_data + i * oneoutputsize
                     );
             }
-        } 
+        }
     } else if(filter_rows == input_rows && filter_cols == input_cols&& padding == 1){
             ConvamKernelLauncher<T>(d,
                     input_data,
@@ -263,7 +263,7 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
     } else {
         size_t const block_size = 16;
         size_t const max_batch = (65536*block_size + 1 - block_size)/(out_rows*out_cols);
-        if (batch <= max_batch) {
+        if ((size_t)batch <= max_batch) {
             ConvamKernelLauncher<T>(d,
                     input_data,
                     filter,
@@ -286,7 +286,7 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     );
         } else {
             loop1Da(i, batch, max_batch){
-                size_t const ibatch =  batch - 1 - i >= max_batch ? max_batch : batch - i;
+                size_t const ibatch =  (size_t)(batch - 1 - i) >= max_batch ? max_batch : batch - i;
                 ConvamKernelLauncher<T>(d,
                     input_data + i * oneinputsize,
                     filter,
@@ -310,7 +310,7 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
             }
         }
     }
-} 
+}
 
 
 
@@ -321,7 +321,7 @@ __global__ void im2col_filtergrad(const T *in, int batch,
     int kw, int kh, int pw, int ph, int sw, int sh,
     int dw, int dh, int po, int pc, T *out){
     unsigned pl = batch * oh * ow;
-    for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; 
+    for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x;
             tId < pc*pl; tId += blockDim.x * gridDim.x){
         unsigned patchId = (tId + po*pl) / pl;
         unsigned outB    = (patchId / c) / kw; // kh
@@ -340,7 +340,7 @@ __global__ void im2col_filtergrad(const T *in, int batch,
         else
             out[tId] = T(0);
 
-    }   
+    }
 
 }
 template <typename T>
@@ -401,10 +401,10 @@ void ConvamFilterGradKernelLauncher(
 
     im2colLauncher_filtergrad<T>(d,input,batch,input_height,input_width,grad_height,grad_width,grad_channel,in_depth,filter_height,filter_width,stride_row,stride_col,\
     filter_left_offset,filter_top_offset,1,1,im2col);
-    const size_t m = filter_height*filter_width*in_depth; 
-    const size_t n = grad_channel; 
-    const size_t k = batch*grad_height*grad_width; 
-    const size_t lda = k; 
+    const size_t m = filter_height*filter_width*in_depth;
+    const size_t n = grad_channel;
+    const size_t k = batch*grad_height*grad_width;
+    const size_t lda = k;
     const size_t ldb = n;
     const size_t ldc = n;
     dim3 blockSize(16, 16, 1);
@@ -416,12 +416,12 @@ void ConvamFilterGradKernelLauncher(
 
 template <typename T>
 void ConvamFilterGradFunctor<Eigen::GpuDevice, T>::operator()(
-        const Eigen::GpuDevice& d, const T* input, const T* grad, 
-        T* im2col, const int input_rows, const int input_cols, 
-        const int batch, const int in_depth, const int out_cols, 
-        const int out_rows,const int out_depth, const int filter_left_offset, 
-        const int filter_top_offset, const int stride_rows, 
-        const int stride_cols, const int filter_cols, const int filter_rows, 
+        const Eigen::GpuDevice& d, const T* input, const T* grad,
+        T* im2col, const int input_rows, const int input_cols,
+        const int batch, const int in_depth, const int out_cols,
+        const int out_rows,const int out_depth, const int filter_left_offset,
+        const int filter_top_offset, const int stride_rows,
+        const int stride_cols, const int filter_cols, const int filter_rows,
         T* output
         ) {
     ConvamFilterGradKernelLauncher<T>(
@@ -446,12 +446,12 @@ void ConvamFilterGradFunctor<Eigen::GpuDevice, T>::operator()(
             );
 }
 template <typename T>
-__global__ void im2col_inputgrad(const T *in, int c, int w, int h, int ow, 
-        int oh, int kw, int kh, int pw, int ph, int sw, int sh, int dw, int dh, 
+__global__ void im2col_inputgrad(const T *in, int c, int w, int h, int ow,
+        int oh, int kw, int kh, int pw, int ph, int sw, int sh, int dw, int dh,
         int po, int pc, T *out)
 {
 	unsigned pl = kw * kh * c;
-	for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x; 
+	for(unsigned tId = blockIdx.x * blockDim.x + threadIdx.x;
             tId < pc*pl; tId += blockDim.x * gridDim.x)
 	{
 		unsigned patchId = (tId + po*pl) / pl;
@@ -467,22 +467,22 @@ __global__ void im2col_inputgrad(const T *in, int c, int w, int h, int ow,
 		int inH = outH * 1 - ph + offsetH * dh;
 		int inW = outW * 1 - pw + offsetW * dw;
 
-		if(inH >= 0 && inW >= 0 && inH < h && inW < w) { 
+		if(inH >= 0 && inW >= 0 && inH < h && inW < w) {
 			if (inH%sh == 0 && inW%sw == 0)
 			{
                 unsigned orign_h = (h-1)/sh+1;
                 unsigned orign_w = (w-1)/sw+1;
                 unsigned orign_h_idx = inH/sh;
                 unsigned orign_w_idx = inW/sw;
-				out[tId] = in[((outB * (orign_h) + orign_h_idx) * 
+				out[tId] = in[((outB * (orign_h) + orign_h_idx) *
                         (orign_w) + orign_w_idx) * c + offsetC];
 			} else
 			{
 				out[tId] = T(0);
 			}
 		}
-		else { 
-			out[tId] = T(0); 
+		else {
+			out[tId] = T(0);
 		}
 	}
 }
@@ -552,7 +552,7 @@ void ConvamInputGradKernelLauncher(
     const size_t lda = k; //4
     const size_t ldb = input_channel;
     const size_t ldc = input_channel;
-    const int size = m*n;
+    //const int size = m*n;
     dim3 block_size(32,32);
     dim3 grid_size(ceil(filter_width * filter_height/(float)32.0), ceil(output_channel/(float)32.0));
     reverseNswapdim23<T><<<grid_size,block_size>>>(filter_height, filter_width, input_channel, output_channel, rsfilter, filter);
@@ -568,8 +568,8 @@ void ConvamInputGradKernelLauncher(
 
 template <typename T>
 void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
-        const Eigen::GpuDevice& d, const T* grad, T* im2col, 
-        const int hole_grad_width, const int hole_grad_height, 
+        const Eigen::GpuDevice& d, const T* grad, T* im2col,
+        const int hole_grad_width, const int hole_grad_height,
         const int pad_top, const int pad_left, const T* filter, T* rsfilter,
         const int filter_rows, const int filter_cols, const int out_depth,
         const int stride_rows, const int stride_cols, const int batch,
@@ -577,56 +577,56 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
         T* output, const int out_rows, const int out_cols
         ){
     // a very primitive tiling, I mean VERY
-    auto const oneinputsize = input_rows*input_cols*in_depth; 
-    auto const oneoutputsize = out_rows*out_cols*out_depth; 
+    //auto const oneinputsize = input_rows*input_cols*in_depth;
+    auto const oneoutputsize = out_rows*out_cols*out_depth;
     size_t const block_size = 16;
     size_t const max_batch = (65536*block_size + 1 - block_size)/
         (input_rows*input_cols);
-    if (batch <= max_batch) {
-        
+    if ((size_t)batch <= max_batch) {
+
         ConvamInputGradKernelLauncher<T>(
-                d, 
-                grad, 
-                im2col, 
-                hole_grad_width, 
-                hole_grad_height, 
+                d,
+                grad,
+                im2col,
+                hole_grad_width,
+                hole_grad_height,
                 pad_top,
-                pad_left, 
-                filter, 
-                rsfilter, 
-                filter_rows, 
-                filter_cols, 
+                pad_left,
+                filter,
+                rsfilter,
+                filter_rows,
+                filter_cols,
                 out_depth,
-                stride_rows, 
-                stride_cols, 
-                batch, 
-                input_rows, 
-                input_cols, 
-                in_depth, 
+                stride_rows,
+                stride_cols,
+                batch,
+                input_rows,
+                input_cols,
+                in_depth,
                 output
                 );
     } else {
         loop1Da(i, batch, max_batch){
-            size_t const ibatch =  batch - 1 - i >= max_batch ? max_batch : batch - i;
+            size_t const ibatch =  (size_t)(batch - 1 - i) >= max_batch ? max_batch : batch - i;
             ConvamInputGradKernelLauncher<T>(
-                     d, 
-                     grad + i*oneoutputsize, 
-                     im2col, 
-                     hole_grad_width, 
-                     hole_grad_height, 
+                     d,
+                     grad + i*oneoutputsize,
+                     im2col,
+                     hole_grad_width,
+                     hole_grad_height,
                      pad_top,
-                     pad_left, 
-                     filter, 
-                     rsfilter, 
-                     filter_rows, 
-                     filter_cols, 
+                     pad_left,
+                     filter,
+                     rsfilter,
+                     filter_rows,
+                     filter_cols,
                      out_depth,
-                     stride_rows, 
-                     stride_cols, 
-                     ibatch, 
-                     input_rows, 
-                     input_cols, 
-                     in_depth, 
+                     stride_rows,
+                     stride_cols,
+                     ibatch,
+                     input_rows,
+                     input_cols,
+                     in_depth,
                      output + i*oneoutputsize
                 );
         }

@@ -37,7 +37,7 @@ from tensorflow.python.util.deprecation import deprecated_argument_lookup
 
 from tensorflow.python.util.tf_export import tf_export
 import tensorflow as tf
-convam_module = tf.load_op_library('/home/jing/AMDNN/convam_gpu.so')
+convam_module = tf.load_op_library('./convam_gpu.so')
 
 _CHANNELS_LAST_FORMATS = frozenset({
     "NWC", "NHC", "NHWC", "NWHC", "NDHWC", "NDWHC", "NHDWC", "NHWDC", "NWDHC",
@@ -213,23 +213,23 @@ def amconvolution_v2(  # pylint: disable=missing-docstring
 
 @ops.RegisterGradient("Convam")
 def _convam_grad_cc(op,grad):
-  DT = op.get_attr("T")
+  #data_type = op.get_attr("T")
   dilations = op.get_attr("dilations")
   strides = op.get_attr("strides")
   padding = op.get_attr("padding")
   data_format = op.get_attr("data_format")
-  shape_0, shape_1 = array_ops.shape_n([op.inputs[0], op.inputs[1]])
+  # shape_0 input shape_1 filter
+  shape_0 = array_ops.shape(op.inputs[0])
+  shape_1 = array_ops.shape(op.inputs[1])
+  print(shape_0)
+  print(shape_1)
   return  [convam_module.convam_input_grad(shape_0,op.inputs[1],grad,
           dilations=dilations,
           strides=strides,
           padding=padding,
-          data_format=data_format),convam_module.convam_filter_grad(op.inputs[0],shape_1,grad,
+          data_format=data_format),
+          convam_module.convam_filter_grad(shape_1,op.inputs[0], grad,
           dilations=dilations,
           strides=strides,
           padding=padding,
           data_format=data_format)]
-
-
-
-
-

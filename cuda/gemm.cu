@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <math.h>
 
-typedef int32_t int32;
-
-//using namespace tensorflow;
+//typedef int32_t int32;
+#include "tensorflow/core/framework/types.h"
+using namespace tensorflow;
 
 #ifdef FMBM32_MULTIPLIER
    #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));

@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <math.h>
 
-typedef int32_t int32;
+#include "tensorflow/core/framework/types.h"
+using namespace tensorflow;
 
 template <typename T>
 __global__ void reverseNswapdim23(size_t height, size_t width, size_t n_channels, size_t n_filters, T* dest, const T* src ){
