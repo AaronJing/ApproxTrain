@@ -2,57 +2,45 @@
 
 <what this is>
 
-## Installation    
+## Installation of Dependencies   
 
-AMDNN requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We have tested the implementation on a Ubuntu 18.04.6 system with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9.  We recommend using python 3.5-3.8 and g++ >= 5.4.0.
+AMDNN requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We recommend using Python 3.5-3.8 and g++ >= 5.4.0.
+We did the development and testing on a Ubuntu 18.04.6 environment with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9. A brief guide on installing those dependency versions on an Ubuntu system are given below. ALternatively, If you can follow the official  TensorFlow [build guide](https://www.tensorflow.org/install/source).
+
+
+### Tensorflow 2.3
     
-### Dependency
-    
-### Python3
-
-We recommend using python3 3.5-3.8
-
-### Tensorflow
-    
-For Ubuntu user,
-
-``
+```
 pip3 install --user Tensorflow==2.3.0
-``
-
-### CUDA 
-Our code base is built against CUDA 10.1
-
-Download CUDA 10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base).
-    
-### G++
-g++ 8.4.0.
-
-Other g++ versions might lead errors.
-
-For Ubuntu user,
+```
+   
+### g++ 8
 
 ```
-// install g++_8
+# install g++ version 8
+sudo apt -y install  g++8 
 
-sudo apt -y install  g++8
-
-// give g++-8 priority
-
+# add g++ 8 as an alternative g++
 sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 8
 
-// you should be able to select the g++-8 from drop down
-
+# update default g++ to version    
+# Note: you must select the g++-8 from drop down
 sudo update-alternatives --config g++
 
-```
-### cuDNN
+```    
 
-cuDNN is reuiqred for other tensorflow official layers, e.g., pooling.
+Note: Make sure your g++ version is greater than 5.4. Otherwise it may lead to a segmentation fault due to a known issue in [Tensorflow]().
+    
+    
+### CUDA Toolkit 10.1
 
-We use cuDNN 7.6.5.
+Download CUDA 10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base) and follow the steps in the CUDA documentation.
+    
+### cuDNN 7.6.5
 
-After downloading, 
+cuDNN is required for other tensorflow official layers, e.g., pooling.
+
+Download CuDNN from the [NVIDIA website](https://developer.nvidia.com/cudnn). Note that you will have to register for this. After downloading the tarball:
 
 ```
 // decompress cuDNN
@@ -62,11 +50,9 @@ sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include
 sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64 
 sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
 ```
-Details can be found [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
 
-### alternative version
+Further details and alternative installation methods can be found [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
 
-If you do not like to use provided dependency, you can follow official [build guide](https://www.tensorflow.org/install/source).
 
 ## Example
 
