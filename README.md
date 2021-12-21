@@ -1,29 +1,34 @@
 # AMDNN
 
-## Dependency
+<what this is>
+
+## Installation    
+
+AMDNN requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We have tested the implementation on a Ubuntu 18.04.6 system with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9.  We recommend using python 3.5-3.8 and g++ >= 5.4.0.
+    
+### Dependency
+    
+### Python3
+
+We recommend using python3 3.5-3.8
 
 ### Tensorflow
-
-Our code has been tested with Tensorflow 2.3.0
-
+    
 For Ubuntu user,
 
 ``
 pip3 install --user Tensorflow==2.3.0
 ``
 
-### Python3
-
-We recommend using python3 3.5-3.8
-
 ### CUDA 
 Our code base is built against CUDA 10.1
 
-Download CUDA10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base).
-### GCC/G++
-gcc/g++ 8.4.0.
+Download CUDA 10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base).
+    
+### G++
+g++ 8.4.0.
 
-Other gcc/g++ versions might lead errors.
+Other g++ versions might lead errors.
 
 For Ubuntu user,
 
@@ -79,7 +84,7 @@ pip3 install --user tensorflow-datasets
 
 We provides two approximate multipliers, Mitchell logarithm-based approximate multiplier and minimally biased multipliers in `cuda` directory.
 ```
-FPmultMBM_fast10.inl
+FPmultMBM_fast10.inl 
 FPmultMBM_fast12.inl
 FPmultMBM_fast14.inl
 FPmultMBM_fast16.inl                                                              
@@ -100,30 +105,39 @@ Mitchell_32.inl
 | 1 | 8 | 7 | 16 |
 | 1 | 8 | 23 | 32 |
 
-Select multiplier you would like to test with and select it corresponding flags from  `AMDNN/cuda/gemm.cu` to define in `gpu_compile.sh`.
+Select multiplier you would like to test with and select it corresponding flags from  `AMDNN/cuda/gemm.cu` to make
 
 For example,
 
 - In `AMDNN/cuda/gemm.cu`, find a multiplier you would like to use
+    
 
 ```
 #ifdef FPMBM32_MULTIPLIER
 ...
 #endif
 ```
-
-
-- In `AMDNN/gpu_compile.sh`, define it as following
-
-```
-MULTIPLIER="-DFMBM32_MULTIPLIER=1"
-```
-
-- Compile into library
+    
+- make
 
 ```
-./gpu_compile.sh
+make clean && make MULTIPLIER=FMBM32_MULTIPLIER
 ```
+    
+- Avaliable Multipliers Name
+```
+FMBM32_MULTIPLIER
+FMBM16_MULTIPLIER
+FMBM14_MULTIPLIER
+FMBM12_MULTIPLIER
+FMBM10_MULTIPLIER
+MITCHEL32_MULTIPLIER
+MITCHEL16_MULTIPLIER
+MITCHEL14_MULTIPLIER
+MITCHEL12_MULTIPLIER
+MITCHEL10_MULTIPLIER
+```
+    
 ### Adding Your Multipliers
 
 Multiplier should take two `float32` as input and output one `float32` if you would like to train/inference.
@@ -136,17 +150,12 @@ For inference, it supports integer type.
 
 - Add `__device__` attribute to all related multiplier function in `your-multiplier-design.inl`.
 
-- In `AMDNN/gpu_compile.sh`, define it as following
+- make
 
 ```
-MULTIPLIER="-DYOUR_MULTIPLIER=1"
+make clean && make MULTIPLIER=YOUR_MULTIPLIER
 ```
 
-- Compile into library `convam.so`
-
-```
-./gpu_compile.sh
-```
 
 ## Use in Tensorflow model
 
@@ -164,7 +173,7 @@ from python.keras.layers.am_convolutional import AMConv2D
 
 Then you can replace exisiting `Conv2D` with `AMConv2D` in your model definition.
 
-**P.S.** If you would like to use checkpoint between `Conv2D` and `AMConv2D`, make sure you save weights and load weights only. Save/load model might not give your correct graph.(See it on [tensorflow save_and_load](https://www.tensorflow.org/tutorials/keras/save_and_load))
+**P.S.** If you would like to use checkpoint between `Conv2D` and `AMConv2D`, make sure you save weights and load weights only. Save/load model will not give your correct graph.(See it on [tensorflow save_and_load](https://www.tensorflow.org/tutorials/keras/save_and_load))
 
 ## Project Structure
 ```
@@ -181,9 +190,9 @@ Then you can replace exisiting `Conv2D` with `AMConv2D` in your model definition
     └── Convam.cc # OpKernel definition
     └── Convam.h # OpFunctor definition and partial specialisation
     └── convam_final_test.py # a primitive test for Convam has exact behavior as Conv2D
-    └── _convam_grad.py # gradient register for above primitive test
-
+    └── _convam_grad.py # gradient register for primitive test
 ```
+    
 ## Docker Image
 
 TODO
