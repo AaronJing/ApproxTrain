@@ -1,6 +1,6 @@
 CC       = gcc
 CXX      = g++
-CPPFLAGS += -DGOOGLE_CUDA=1
+CPPFLAGS += -DGOOGLE_CUDA=1 -I.
 CFLAGS   += -g -Wall -O2 -std=c++11  -fPIC
 LDFLAGS  +=
 
@@ -10,7 +10,7 @@ CPPFLAGS += $(TF_CFLAGS)
 LDFLAGS += $(TF_LFLAGS)
 
 BINARY = convam_gpu.so
-OBJ = Convam.o
+OBJ = convam.o
 
 CUDA_ROOT = /usr/local/cuda
 CUDA_LIB ?= $(CUDA_ROOT)/lib64
@@ -29,7 +29,7 @@ else
 	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
 endif
 
-.PHONY: clean
+.PHONY: clean test
 
 
 all: $(BINARY)
@@ -41,7 +41,7 @@ $(BINARY): $(OBJ)
 test_bin: $(OBJ)
 	$(CXX)  $(CFLAGS) $(CPPFLAGS) $(OBJ) test/test.cpp $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
 
-Convam.o: Convam.cc Convam.h
+convam.o: convam.cc convam.h
 	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
 
 
@@ -61,4 +61,4 @@ clean:
 	rm -f *.o *.so
 
 test: $(BINARY)
-	./scripts/test.sh
+	python3 mnist_example.py

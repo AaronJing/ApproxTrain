@@ -12,7 +12,7 @@
 #include "error.cuh"
 #include "gemm.cuh"
 #include "reverseNswapdim23.cuh"
-#include "../Convam.h"
+#include "convam.h"
 
 using namespace tensorflow;
 //using namespace std;
