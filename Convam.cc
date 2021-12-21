@@ -354,7 +354,6 @@ Status ComputeConv2DDimension(const Conv2DParameters& params,
 
   // The first dimension for input is batch.
   const int64 batch_raw = GetTensorDim(input, params.data_format, 'N');
-  // printf("batch_raw %d\n",(int)batch_raw);
   TF_REQUIRES(FastBoundsCheck(batch_raw, std::numeric_limits<int>::max()),
               errors::InvalidArgument("batch is too large"));
   const int batch = static_cast<int>(batch_raw);
@@ -1109,7 +1108,7 @@ REGISTER_CPU_INPUTGRAD(int32);
   /* Declare explicit instantiations in kernel_example.cu.cc. */ \
   extern template class ConvamInputGradFunctor<GPUDevice, T>;            \
   REGISTER_KERNEL_BUILDER(                                       \
-      Name("ConvamInputGrad").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
+      Name("ConvamInputGrad").Device(DEVICE_GPU).TypeConstraint<T>("T").HostMemory("input_sizes"), \
       ConvamInputGradOp<GPUDevice, T>);
 REGISTER_GPU_INPUTGRAD(float);
 REGISTER_GPU_INPUTGRAD(int32);

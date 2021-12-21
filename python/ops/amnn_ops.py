@@ -221,8 +221,6 @@ def _convam_grad_cc(op,grad):
   # shape_0 input shape_1 filter
   shape_0 = array_ops.shape(op.inputs[0])
   shape_1 = array_ops.shape(op.inputs[1])
-  print(shape_0)
-  print(shape_1)
   return  [convam_module.convam_input_grad(shape_0,op.inputs[1],grad,
           dilations=dilations,
           strides=strides,
