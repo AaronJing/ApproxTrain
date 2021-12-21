@@ -16,34 +16,34 @@ pip3 install --user Tensorflow==2.3.0
 
 We recommend using python3 3.5-3.8
 
-### CUDA & GCC/G++
-
-Our code base is built against CUDA 10.1 and gcc/g++ 8.4.0.
+### CUDA 
+Our code base is built against CUDA 10.1
 
 Download CUDA10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base).
+### GCC/G++
+gcc/g++ 8.4.0.
 
 Other gcc/g++ versions might lead errors.
 
 For Ubuntu user,
 
 ```
+// install g++_8
 
-sudo apt -y install gcc-8 g++8
+sudo apt -y install  g++8
 
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 8 
+// give g++-8 priority
 
 sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 8
 
-// you should be able to select the gcc/g++ 8 from drop down
-
-sudo update-alternatives --config gcc
+// you should be able to select the g++-8 from drop down
 
 sudo update-alternatives --config g++
 
 ```
 ### cuDNN
 
-cuDNN is reuiqred for non-approximate layer, e.g., max pooling.
+cuDNN is reuiqred for other tensorflow official layers, e.g., pooling.
 
 We use cuDNN 7.6.5.
 
