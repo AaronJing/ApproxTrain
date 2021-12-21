@@ -20,20 +20,15 @@ CUDA_CFLAGS += -g  -O2 -std=c++11 $(CUDA_ARCH) -Xcompiler -Wall -Xcompiler -fPIC
 CUDA_LDFLAGS = -L$(CUDA_LIB) -lcudart
 OBJ += $(CUDA_OBJ)
 
-#MULTIPLIER="-DFMBM32_MULTIPLIER=1"
-#MULTIPLIER="-DFMBM16_MULTIPLIER=1"
-
 ifeq  ($(MULTIPLIER),)
     MULTIPLIER_CPPFLAG =
-else	
+else
 	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
 endif
 
 .PHONY: clean test
 
-
 all: $(BINARY)
-
 
 $(BINARY): $(OBJ)
 	$(CXX) $(CFLAGS) -shared $(OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
@@ -44,18 +39,18 @@ test_bin: $(OBJ)
 convam.o: convam.cc convam.h
 	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
 
+# header deps
+gemm_inc_deps = cuda/FPmultMBM_fast10.inl  cuda/FPmultMBM_fast14.inl  cuda/FPmultMBM_fast32.inl  cuda/Mitchell_12.inl  cuda/Mitchell_16.inl cuda/FPmultMBM_fast12.inl  cuda/FPmultMBM_fast16.inl  cuda/Mitchell_10.inl       cuda/Mitchell_14.inl  cuda/Mitchell_32.inl
 
 # cuda stuff
-
 cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cuda/gemm.cuh cuda/reverseNswapdim23.cuh
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) --expt-relaxed-constexpr -c $< -o $@
 
-gemm.cu.o: cuda/gemm.cu
+gemm.cu.o: cuda/gemm.cu $(gemm_inc_deps)
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) -c $< -o $@
 
 reverseNswapdim23.cu.o: cuda/reverseNswapdim23.cu
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@
-
 
 clean:
 	rm -f *.o *.so

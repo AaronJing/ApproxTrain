@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <math.h>
 
-//typedef int32_t int32;
 #include "tensorflow/core/framework/types.h"
 using namespace tensorflow;
 

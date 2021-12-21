@@ -1,4 +1,3 @@
-// kernel_example.h
 #ifndef CONVAM_H_
 #define CONVAM_H_
 
@@ -40,7 +39,7 @@ struct ConvamFilterGradFunctor{
           );
 };
 
-#if GOOGLE_CUDA
+#ifdef GOOGLE_CUDA
 // Partially specialize functor for GpuDevice.
 template <typename T>
 struct ConvamFunctor<Eigen::GpuDevice, T> {

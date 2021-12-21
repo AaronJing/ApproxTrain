@@ -41,9 +41,6 @@ __device__ uint32_t fn_mul_mbmmant14(uint32_t Amnt, uint32_t Bmnt)
 	return Smnt_corr_whbit;	// unnormalized
 }
 
-
-
-
 //********************************************************************************************************************************************
 __device__ float FPmultMBM_fast14(float Af, float Bf)
 {

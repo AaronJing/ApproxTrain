@@ -1,5 +1,4 @@
 #include "convam.h"
-// #include "tensorflow/core/kernels/conv_ops.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/platform/default/logging.h"
@@ -11,7 +10,6 @@
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/util/use_cudnn.h"
-// #include "tensorflow/core/kernels/conv_ops_gpu.h"
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow/core/framework/kernel_shape_util.h"
 #include "tensorflow/core/framework/types.h"
@@ -20,10 +18,15 @@
 #include <fstream>
 #include <chrono>
 #include <sys/time.h>
+
 using namespace std;
 using namespace tensorflow;
 using GPUDevice = Eigen::GpuDevice;
 using CPUDevice = Eigen::ThreadPoolDevice;
+
+
+/*************************** from original tensorflow source ******************************/
+
 struct ConvBackpropSpatialDimension {
   int64 input_size;
   int64 filter_size;
@@ -39,6 +42,7 @@ struct ConvBackpropSpatialDimension {
 
 // Computed dimensions for a backwards convolution.
 struct ConvBackpropDimensions {
+
   // Information about each spatial dimension.
   gtl::InlinedVector<ConvBackpropSpatialDimension, 3> spatial_dims;
 
@@ -58,6 +62,7 @@ struct ConvBackpropDimensions {
   // Compute padding for the given spatial dimension.
   int SpatialPadding(const Padding& padding, int dim) const;
 };
+
 int ConvBackpropDimensions::SpatialPadding(const Padding& padding,
                                            int dim) const {
   return (padding == VALID)
@@ -74,37 +79,38 @@ Status ConvBackpropExtractAndVerifyDimensionV2(
     const gtl::ArraySlice<int32>& dilations, const std::vector<int32>& strides,
     Padding padding, int spatial_dim, int filter_spatial_dim,
     ConvBackpropSpatialDimension* dim) {
-  dim->input_size = input_shape.dim_size(spatial_dim);
-  dim->filter_size = filter_shape.dim_size(filter_spatial_dim);
-  dim->output_size = output_shape.dim_size(spatial_dim);
-  dim->stride = strides[spatial_dim];
-  dim->dilation = dilations[spatial_dim];
-  int64 out_size = 0, pad_size = 0;
-  TF_RETURN_IF_ERROR(GetWindowedOutputSizeV2(dim->input_size, dim->filter_size,
-                                             dim->dilation, dim->stride,
-                                             padding, &out_size, &pad_size));
-  if (dim->output_size != out_size) {
-    return errors::InvalidArgument(
-        label, ": Size of out_backprop doesn't match computed: ", "actual = ",
-        dim->output_size, ", computed = ", out_size,
-        " spatial_dim: ", spatial_dim, " input: ", dim->input_size,
-        " filter: ", dim->filter_size, " output: ", dim->output_size,
-        " stride: ", dim->stride, " dilation: ", dim->dilation);
-  }
 
-  int64 effective_filter_size = (dim->filter_size - 1) * dim->dilation + 1;
-  dim->expanded_output_size = (dim->output_size - 1) * dim->stride + 1;
-  const auto padded_out_size = dim->input_size + effective_filter_size - 1;
-  dim->pad_before = effective_filter_size - 1 - pad_size;
-  dim->pad_after =
-      padded_out_size - dim->expanded_output_size - dim->pad_before;
-  VLOG(2) << label << ": expanded_out = " << dim->expanded_output_size
-          << ", effective_filter_size = " << effective_filter_size
-          << ", padded_out = " << padded_out_size
-          << ", pad_before = " << dim->pad_before
-          << ", pad_after = " << dim->pad_after
-          << ", dilation = " << dim->dilation << ", strides = " << dim->stride;
-  return Status::OK();
+    dim->input_size = input_shape.dim_size(spatial_dim);
+    dim->filter_size = filter_shape.dim_size(filter_spatial_dim);
+    dim->output_size = output_shape.dim_size(spatial_dim);
+    dim->stride = strides[spatial_dim];
+    dim->dilation = dilations[spatial_dim];
+    int64 out_size = 0, pad_size = 0;
+    TF_RETURN_IF_ERROR(GetWindowedOutputSizeV2(dim->input_size, dim->filter_size,
+                                              dim->dilation, dim->stride,
+                                              padding, &out_size, &pad_size));
+    if (dim->output_size != out_size) {
+      return errors::InvalidArgument(
+          label, ": Size of out_backprop doesn't match computed: ", "actual = ",
+          dim->output_size, ", computed = ", out_size,
+          " spatial_dim: ", spatial_dim, " input: ", dim->input_size,
+          " filter: ", dim->filter_size, " output: ", dim->output_size,
+          " stride: ", dim->stride, " dilation: ", dim->dilation);
+    }
+
+    int64 effective_filter_size = (dim->filter_size - 1) * dim->dilation + 1;
+    dim->expanded_output_size = (dim->output_size - 1) * dim->stride + 1;
+    const auto padded_out_size = dim->input_size + effective_filter_size - 1;
+    dim->pad_before = effective_filter_size - 1 - pad_size;
+    dim->pad_after =
+        padded_out_size - dim->expanded_output_size - dim->pad_before;
+    VLOG(2) << label << ": expanded_out = " << dim->expanded_output_size
+            << ", effective_filter_size = " << effective_filter_size
+            << ", padded_out = " << padded_out_size
+            << ", pad_before = " << dim->pad_before
+            << ", pad_after = " << dim->pad_after
+            << ", dilation = " << dim->dilation << ", strides = " << dim->stride;
+    return Status::OK();
 }
 
 Status ConvBackpropExtractAndVerifyDimension(
@@ -112,10 +118,12 @@ Status ConvBackpropExtractAndVerifyDimension(
     const TensorShape& filter_shape, const TensorShape& output_shape,
     const std::vector<int32>& strides, Padding padding, int spatial_dim,
     int filter_spatial_dim, ConvBackpropSpatialDimension* dim) {
+
   static constexpr std::array<int32, 5> one_dilations = {{1, 1, 1, 1, 1}};
   return ConvBackpropExtractAndVerifyDimensionV2(
       label, input_shape, filter_shape, output_shape, one_dilations, strides,
       padding, spatial_dim, filter_spatial_dim, dim);
+
 }
 
 Status ConvBackpropComputeDimensionsV2(
@@ -123,6 +131,7 @@ Status ConvBackpropComputeDimensionsV2(
     const TensorShape& filter_shape, const TensorShape& out_backprop_shape,
     const gtl::ArraySlice<int32>& dilations, const std::vector<int32>& strides,
     Padding padding, TensorFormat data_format, ConvBackpropDimensions* dims) {
+
   // The + 2 in the following line is for the batch and feature dimensions.
   const int num_dims = num_spatial_dims + 2;
   if (input_shape.dims() != num_dims) {
@@ -397,6 +406,11 @@ Status ComputeConv2DDimension(const Conv2DParameters& params,
 }
 #undef TF_REQUIRES
 
+
+/**************************** Our custom op implementation **********************************/
+
+/*---------------------------- custom convolution operation --------------------*/
+
 REGISTER_OP("Convam")
     .Input("input: T")
     .Input("filter: T")
@@ -407,6 +421,7 @@ REGISTER_OP("Convam")
     .Attr(GetPaddingAttrString())
     .Attr(GetConvnetDataFormatAttrString())
     .SetShapeFn(::tensorflow::shape_inference::Conv2DShape);
+
 // cpu specilisation
 template <typename T>
 struct ConvamFunctor<CPUDevice, T> {
@@ -461,6 +476,7 @@ struct ConvamFunctor<CPUDevice, T> {
     }
   }
 };
+
 template <typename Device, typename T>
 class ConvamOp : public OpKernel{
 public:
@@ -562,6 +578,7 @@ public:
     Conv2DParameters params_;
   TF_DISALLOW_COPY_AND_ASSIGN(ConvamOp);
 };
+
 // For forwardpropagation
 // Register the CPU kernels.
 #define REGISTER_CPU_CONVAM(T)                                          \
@@ -570,6 +587,7 @@ public:
       ConvamOp<CPUDevice, T>);
 REGISTER_CPU_CONVAM(float);
 REGISTER_CPU_CONVAM(int32);
+
 // Register the GPU kernels.
 #ifdef GOOGLE_CUDA
 #define REGISTER_GPU_CONVAM(T)                                          \
@@ -581,6 +599,10 @@ REGISTER_CPU_CONVAM(int32);
 REGISTER_GPU_CONVAM(float);
 REGISTER_GPU_CONVAM(int32);
 #endif  // GOOGLE_CUDA
+
+
+
+/*---------------------------- custom convolution filter gradient --------------------*/
 
 // CPU specisialization for Convam filter grad
 template <typename T>
@@ -644,6 +666,7 @@ struct ConvamFilterGradFunctor<CPUDevice, T>{
     }
   }
 };
+
 REGISTER_OP("ConvamFilterGrad")
   .Input("filter_sizes: int32")
   .Input("input: T")
@@ -661,6 +684,7 @@ REGISTER_OP("ConvamFilterGrad")
       c->set_output(0, s);
       return Status::OK();
     });
+
 template <typename Device, typename T>
 class ConvamFilterGradOp: public OpKernel {
 public:
@@ -702,6 +726,7 @@ public:
 
     OP_REQUIRES_OK(context, context->GetAttr("padding", &padding_));
   }
+
   void Compute(OpKernelContext* context) override{
     const Tensor& input = context->input(1);
     const Tensor& filter_sizes = context->input(0);
@@ -823,8 +848,8 @@ public:
   Padding padding_;
   TensorFormat data_format_;
   TF_DISALLOW_COPY_AND_ASSIGN(ConvamFilterGradOp);
-
 };
+
 // For backpropagation:filter
 // Register the CPU kernels.
 #define REGISTER_CPU_FILTERGRAD(T)                                          \
@@ -845,7 +870,7 @@ REGISTER_GPU_FILTERGRAD(float);
 REGISTER_GPU_FILTERGRAD(int32);
 #endif  // GOOGLE_CUDA
 
-
+/*---------------------------- custom convolution input gradient --------------------*/
 
 // CPU specisialization for ConvamInputGrad
 template <typename T>
@@ -905,6 +930,7 @@ struct ConvamInputGradFunctor<CPUDevice, T> {
     }
   }
 };
+
 REGISTER_OP("ConvamInputGrad")
     .Input("input_sizes: int32")
     .Input("filter: T")
@@ -992,7 +1018,6 @@ class ConvamInputGradOp: public OpKernel {
                            input_shape, filter.shape(), out_backprop.shape(),
                            strides_, padding_, data_format_, &dims));
 
-
         const int filter_width = (int)dims.filter_size(1);
         const int filter_height = (int)dims.filter_size(0);
         const int output_channel = (int)dims.out_depth;
@@ -1015,7 +1040,6 @@ class ConvamInputGradOp: public OpKernel {
 
         const int hole_grad_width = (grad_width-1)*stride_cols+1;
         const int hole_grad_height = (grad_height-1)*stride_rows+1;
-
 
         int64 forw_pad_top, forw_pad_bottom;
         int64 forw_pad_left, forw_pad_right;
@@ -1093,6 +1117,7 @@ class ConvamInputGradOp: public OpKernel {
 
   TF_DISALLOW_COPY_AND_ASSIGN(ConvamInputGradOp);
 };
+
 // For backpropagation:input
 // Register the CPU kernels.
 #define REGISTER_CPU_INPUTGRAD(T)                                          \
