@@ -21,9 +21,11 @@ CUDA_LDFLAGS = -L$(CUDA_LIB) -lcudart
 OBJ += $(CUDA_OBJ)
 
 #MULTIPLIER="-DFMBM32_MULTIPLIER=1"
-# MULTIPLIER="-DFMBM16_MULTIPLIER=1"
+#MULTIPLIER="-DFMBM16_MULTIPLIER=1"
 
 MULIPLIER ?=
+
+MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
 
 .PHONY: clean
 
@@ -38,7 +40,7 @@ test_bin: $(OBJ)
 	$(CXX)  $(CFLAGS) $(CPPFLAGS) $(OBJ) test/test.cpp $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
 
 Convam.o: Convam.cc Convam.h
-	$(CXX) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
+	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
 
 
 # cuda stuff
@@ -47,7 +49,7 @@ cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cu
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) --expt-relaxed-constexpr -c $< -o $@
 
 gemm.cu.o: cuda/gemm.cu
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) -c $< -o $@
 
 reverseNswapdim23.cu.o: cuda/reverseNswapdim23.cu
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@
