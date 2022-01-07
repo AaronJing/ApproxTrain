@@ -54,131 +54,60 @@ sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
 Further details and alternative installation methods can be found [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
 
 
-## Example
+## Running an Example
 
 ### Install tensorflow dataset
 
-In our example, we use tfds to pipeline the train/test image.
-
-For Ubuntu user,
+In our example, we use *tfds* package to load and preprocess the train/test images. Install *tfds* as:
 
 ``
 pip3 install --user tensorflow-datasets
 ``
 
-### Using Existing Multipliers
-
-We provides two approximate multipliers, Mitchell logarithm-based approximate multiplier and minimally biased multipliers in `cuda` directory.
-```
-FPmultMBM_fast10.inl 
-FPmultMBM_fast12.inl
-FPmultMBM_fast14.inl
-FPmultMBM_fast16.inl                                                              
-FPmultMBM_fast32.inl
-Mitchell_10.inl
-Mitchell_12.inl
-Mitchell_14.inl
-Mitchell_16.inl
-Mitchell_32.inl
-```
-`FPmultMBM_fast*`represents minimally biased multipliers and `Mitchell_*` represents Mitchell logarithm-based approximate multiplier. Numbers following after multiplier's name represent the number of bits of input. Followings are bits format.
-
-| sign | exponent | mantissa | number of total bits |
-| ----------- | ----------- | ----------- | ----------- |
-| 1 | 8 | 1 | 10 |
-| 1 | 8 | 3 | 12 |
-| 1 | 8 | 5 | 14 |
-| 1 | 8 | 7 | 16 |
-| 1 | 8 | 23 | 32 |
-
-Select multiplier you would like to test with and select it corresponding flags from  `AMDNN/cuda/gemm.cu` to make
-
-For example,
-
-- In `AMDNN/cuda/gemm.cu`, find a multiplier you would like to use
-    
+### Clone the repository
 
 ```
-#ifdef FPMBM32_MULTIPLIER
-...
-#endif
+git clone https://github.com/AaronJing/AMDNN
+cd AMDNN
 ```
     
-- make
+### Using in-built approximate multipliers
+    
+    
+We provides two approximate multipliers, minimally biased multiplier (MBM) and Mitchell logarithm-based approximate multiplier with different bit-widths as shown in the table below.
+    
+| Name 						 | Multiplier | Bit-width  |
+|----------------------------|------------|------------|
+| FMBM32_MULTIPLIER          | MBM        | 32		   |	
+| FMBM16_MULTIPLIER          | MBM        | 16         |
+| FMBM14_MULTIPLIER          | MBM        | 14         |
+| FMBM12_MULTIPLIER          | MBM        | 12         |
+| FMBM10_MULTIPLIER          | MBM        | 10         |
+| MITCHEL32_MULTIPLIER       | Mitchell   | 32         |
+| MITCHEL16_MULTIPLIER       | Mitchell   | 16         |
+| MITCHEL14_MULTIPLIER       | Mitchell   | 14         |
+| MITCHEL12_MULTIPLIER       | Mitchell   | 12         |
+| MITCHEL10_MULTIPLIER       | Mitchell   | 10         |
+    
+Now build our library using *make* command followed by the multiplier. For example, to build with  MBM 32 bit multiplier:
 
 ```
 make clean && make MULTIPLIER=FMBM32_MULTIPLIER
 ```
     
-- Avaliable Multipliers Name
-```
-FMBM32_MULTIPLIER
-FMBM16_MULTIPLIER
-FMBM14_MULTIPLIER
-FMBM12_MULTIPLIER
-FMBM10_MULTIPLIER
-MITCHEL32_MULTIPLIER
-MITCHEL16_MULTIPLIER
-MITCHEL14_MULTIPLIER
-MITCHEL12_MULTIPLIER
-MITCHEL10_MULTIPLIER
-```
+If you do not specify a multiplier, i.e., if you just call `make`, the library will be built with IEEE 754 single precision multiplication (* operator).     
     
-### Adding Your Multipliers
-
-Multiplier should take two `float32` as input and output one `float32` if you would like to train/inference.
-
-For inference, it supports integer type.
-
-- In `AMDNN/cuda/gemm.cu`, define `MULTIPLY(a, b)` using your multiplier.
-
-- Add `your-multiplier-design.inl` in `cuda` directory.
-
-- Add `__device__` attribute to all related multiplier function in `your-multiplier-design.inl`.
-
-- make
-
-```
-make clean && make MULTIPLIER=YOUR_MULTIPLIER
-```
-
-
-## Use in Tensorflow model
-
-`Convam.so` has been abstracted by python wrapper. It has exact args definition as official Conv2D. However, we only support input format (batch, img_height, img_width, channel). Dilation is not supported at the momemnt. 
-
-```
-tf.keras.layers.Conv2D
-```
-
-To use approximate Conv2D, import the library
-
-```
-from python.keras.layers.am_convolutional import AMConv2D
-```
-
-Then you can replace exisiting `Conv2D` with `AMConv2D` in your model definition.
-
-**P.S.** If you would like to use checkpoint between `Conv2D` and `AMConv2D`, make sure you save weights and load weights only. Save/load model will not give your correct graph.(See it on [tensorflow save_and_load](https://www.tensorflow.org/tutorials/keras/save_and_load))
-
-## Project Structure
-```
-.
-└── AMDNN
-    └── python # python wrapper for AMConv2D, code snippet taken from official Tensorflow
-    └── cuda
-        ├── cuda_kernel.cu # include im2col and GPU implementation for OpFunctor
-        ├── gemm.cu # GEMM kernel and multiplier definition
-        ├── reverseNswapdim23.cu # a helper kernel for backpropagation
-        ├── *.inl # multiplier
-        └── other files # helper function taken from official Tensorflow
-    └── example
-    └── Convam.cc # OpKernel definition
-    └── Convam.h # OpFunctor definition and partial specialisation
-    └── convam_final_test.py # a primitive test for Convam has exact behavior as Conv2D
-    └── _convam_grad.py # gradient register for primitive test
-```
+When building is sucessful, `Convam.so` file is created. Now, launch the example script as:
     
+```
+python3 mnist_example.py    
+```    
+
+## For Developers    
+
+If you are interested in adding your own multiplier or your own dataset, please visit the [developers guide](developer.md).
+    
+
 ## Docker Image
 
 TODO
