@@ -4,18 +4,21 @@
 ```
 .
 └── AMDNN
-    └── python # python wrapper for AMConv2D, code snippet taken from official Tensorflow
     └── cuda
-        ├── cuda_kernel.cu # include im2col and GPU implementation for OpFunctor
-        ├── gemm.cu # GEMM kernel and multiplier definition
-        ├── reverseNswapdim23.cu # a helper kernel for backpropagation
-        ├── *.inl # multiplier
-        └── other files # helper function taken from official Tensorflow
-    └── example
-    └── Convam.cc # OpKernel definition
-    └── Convam.h # OpFunctor definition and partial specialisation
-    └── convam_final_test.py # a primitive test for Convam has exact behavior as Conv2D
-    └── _convam_grad.py # gradient register for primitive test
+        ├── cuda_kernel.cu          # include im2col and GPU implementation for OpFunctor
+        ├── gemm.cu                 # GEMM kernel and multiplier definition
+        ├── reverseNswapdim23.cu    # a helper kernel for backpropagation
+        ├── *.inl                   # multiplier implementations
+        └── other files             # helper function taken from official Tensorflow
+    └── python                      # python wrapper for AMConv2D, code snippet taken from official Tensorflow
+    └── test                        # various tests for functional correctness checking
+        ├── _convam_grad.py         # gradient register for primitive test
+        └── convam_final_test.py    # a primitive test for Convam has exact behavior as Conv2D           
+    └── convam.cc                   # OpKernel definition
+    └── convam.h                    # OpFunctor definition and partial specialisation
+    └── mnist_example.py            # quick test
+        
+        
 ```
         
     
