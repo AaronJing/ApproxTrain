@@ -4,21 +4,28 @@
 
 ## Installation of Dependencies   
 
-AMDNN requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We recommend using Python 3.5-3.8 and g++ >= 5.4.0.
-We did the development and testing on a Ubuntu 18.04.6 environment with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9. A brief guide on installing those dependency versions on an Ubuntu system are given below. ALternatively, If you can follow the official  TensorFlow [build guide](https://www.tensorflow.org/install/source).
+AMDNN requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We recommend using Python 3.5-3.8 and g++ 5.4.0 or higher.
+We did the development and testing on an Ubuntu 18.04.6 environment with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9. A brief guide on installing those dependency versions on an Ubuntu system are given below. Alternatively, If you can follow the official  TensorFlow [build guide](https://www.tensorflow.org/install/source).
 
 
 ### Tensorflow 2.3
     
 ```
+# check Tensorflow version
+python3 -c 'import tensorflow as tf; print(tf.__version__)'
+
+# install tensorflow 2.3.0
 pip3 install --user Tensorflow==2.3.0
 ```
    
 ### g++ 8
 
 ```
+# Check g++ version
+g++ -v
+    
 # install g++ version 8
-sudo apt -y install  g++8 
+sudo apt -y install  g++-8 
 
 # add g++ 8 as an alternative g++
 sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 8
@@ -34,6 +41,10 @@ Note: Make sure your g++ version is greater than 5.4. Otherwise it may lead to a
     
 ### CUDA Toolkit 10.1
 
+```
+# Check CUDA version
+nvidia-smi
+```     
 Download CUDA 10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base) and follow the steps in the CUDA documentation.
     
 ### cuDNN 7.6.5
@@ -89,13 +100,15 @@ We provides two approximate multipliers, minimally biased multiplier (MBM) and M
 | MITCHEL12_MULTIPLIER       | Mitchell   | 12         |
 | MITCHEL10_MULTIPLIER       | Mitchell   | 10         |
     
-Now build our library using *make* command followed by the multiplier. For example, to build with  MBM 32 bit multiplier:
+Now build our library using *make* command followed by the name of multiplier. For example, to build with  MBM 32 bit multiplier:
 
 ```
 make clean && make MULTIPLIER=FMBM32_MULTIPLIER
 ```
     
-If you do not specify a multiplier, i.e., if you just call `make`, the library will be built with IEEE 754 single precision multiplication (* operator).     
+If you do not specify a multiplier, i.e., if you just call `make`, the library will be built with IEEE 754 single precision multiplication (* operator).
+    
+Warnings come from Tensorflow library could be safely ignored.
     
 When building is sucessful, `Convam.so` file is created. Now, launch the example script as:
     
@@ -103,6 +116,9 @@ When building is sucessful, `Convam.so` file is created. Now, launch the example
 python3 mnist_example.py    
 ```    
 
+You would expect 98% accuracy or higher, if everything works properly.
+ 
+    
 ## For Developers    
 
 If you are interested in adding your own multiplier or your own dataset, please visit the [developers guide](developer.md).
