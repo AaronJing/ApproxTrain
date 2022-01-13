@@ -4,8 +4,8 @@
 ```
 .
 └── AMDNN
-    └── cuda
-        ├── cuda_kernel.cu          # include im2col and GPU implementation for OpFunctor
+    └── cuda 
+        ├── cuda_kernel.cu          # include im2col and GPU implementation for OpFunctor (see definition on create custom op https://www.tensorflow.org/guide/create_op)
         ├── gemm.cu                 # GEMM kernel and multiplier definition
         ├── reverseNswapdim23.cu    # a helper kernel for backpropagation
         ├── *.inl                   # multiplier implementations
