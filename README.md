@@ -14,6 +14,7 @@ We did the development and testing on an Ubuntu 18.04.6 environment with Tensorf
 # check Tensorflow version
 python3 -c 'import tensorflow as tf; print(tf.__version__)'
 
+    
 # install tensorflow 2.3.0
 pip3 install --user Tensorflow==2.3.0
 ```
@@ -118,7 +119,12 @@ python3 mnist_example.py
 
 You would expect 98% accuracy or higher, if everything works properly.
  
-    
+If you are not sure about whether you are running GPU or not, run the following commands.
+
+```
+python3 -c 'import tensorflow as tf; print(tf.test.gpu_device_name())'
+```
+  
 ## For Developers    
 
 If you are interested in adding your own multiplier or your own dataset, please visit the [developers guide](developer.md).
