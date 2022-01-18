@@ -28,7 +28,7 @@ model = tf.keras.models.Sequential([
  tf.keras.layers.Input(shape=(28, 28, 1)),
  AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2),padding='same'),
-# AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
+ AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'),
  tf.keras.layers.Flatten(),
  tf.keras.layers.Dense(1024, activation='relu'),
