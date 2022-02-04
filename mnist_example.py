@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import sys
 from python.keras.layers.am_convolutional import AMConv2D
+from python.keras.layers.amdenselayer import denseam
 (ds_train, ds_test), ds_info = tfds.load(
     'mnist',
     split=['train', 'test'],
@@ -31,9 +32,9 @@ model = tf.keras.models.Sequential([
  AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'),
  tf.keras.layers.Flatten(),
- tf.keras.layers.Dense(1024, activation='relu'),
+ denseam(1024, activation='relu'),
  tf.keras.layers.Dropout(0.4),
- tf.keras.layers.Dense(10, activation='softmax')
+ denseam(10, activation='softmax')
 ])
 model.compile(
     optimizer=tf.keras.optimizers.Adam(0.001),
