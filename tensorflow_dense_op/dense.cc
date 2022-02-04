@@ -277,7 +277,15 @@ public:
             grad_input_tensor(y, x) = 0.0;
         }
     }
-    
+    for (int ix_sample = 0; ix_sample < batch_samples; ix_sample++) {
+      for (int ix_unit = 0; ix_unit < units; ix_unit++) {
+        for (int ix_input = 0; ix_input < input_feature_width; ix_input++) {
+            grad_input_tensor(ix_sample, ix_input) += weights_tensor(ix_input, ix_unit )*grad_tensor(ix_sample, ix_unit);
+            grad_weights_tensor(ix_input, ix_unit ) += input_tensor(ix_sample, ix_input)*grad_tensor(ix_sample, ix_unit);
+        }  
+        grad_biases_tensor(0, ix_unit) += grad_tensor(ix_sample, ix_unit);
+      }
+    }    
     
   }
 };
