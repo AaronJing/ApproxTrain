@@ -69,3 +69,10 @@ test/ResNet-Tensorflow-Test/output
 output
 *.pyc
 errorout
+
+# Prunning output
+*_PRUNE_RAW*
+sparsity_acc_all
+*.png
+/logs
+/checkpoint

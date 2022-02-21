@@ -37,6 +37,9 @@ using GpuDevice = Eigen::GpuDevice;
 #elif MITCHEL10_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMitch_fast10((a),(b));
     #include "Mitchell_10.inl"
+#elif BFLOAT
+    #define MULTIPLY(a,b) bfloat16mul((a),(b));
+    #include "bfloat.inl"
 #else
     #define MULTIPLY(a,b) ((a)*(b));
 #endif

@@ -232,9 +232,11 @@ class denseam(Layer):
           'The innermost dimension of input_shape must be defined, but saw: %s'
           % (input_shape,))
     return input_shape[:-1].concatenate(self.units)
+  def get_prunable_weights(self):
+      return [self.kernel, self.bias]
 
   def get_config(self):
-    config = super(Dense, self).get_config()
+    config = super(denseam, self).get_config()
     config.update({
         'units': self.units,
         'activation': activations.serialize(self.activation),
@@ -248,7 +250,7 @@ class denseam(Layer):
         'kernel_constraint': constraints.serialize(self.kernel_constraint),
         'bias_constraint': constraints.serialize(self.bias_constraint)
     })
-    return configs
+    return config
 
 @ops.RegisterGradient("Denseam")
 def _dense_grad_cc(op, grad):

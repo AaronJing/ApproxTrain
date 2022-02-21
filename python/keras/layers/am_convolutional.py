@@ -314,7 +314,8 @@ class AMConv(Layer):
 
   def _recreate_conv_op(self, inputs):  # pylint: disable=unused-argument
     return False
-
+  def get_prunable_weights(self):
+    return [self.kernel, self.bias]
   def get_config(self):
     config = {
         'filters':
