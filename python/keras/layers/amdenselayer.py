@@ -43,7 +43,7 @@ from tensorflow.python.util.tf_export import get_canonical_name_for_symbol
 from tensorflow.python.util.tf_export import get_symbol_from_name
 from tensorflow.python.util.tf_export import keras_export
 import tensorflow
-amdense_module = tensorflow.load_op_library('./denseam.so')
+amdense_module = tensorflow.load_op_library('./denseam_gpu.so')
 class denseam(Layer):
   """Just your regular densely-connected NN layer.
 

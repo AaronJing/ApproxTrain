@@ -1,5 +1,6 @@
 
 #include "denseam.h"
+#include "approx_mul_lut.h"
 // #include "tensorflow/core/kernels/conv_ops.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
@@ -25,6 +26,13 @@ using namespace std;
 using namespace tensorflow;
 using GPUDevice = Eigen::GpuDevice;
 using CPUDevice = Eigen::ThreadPoolDevice;
+template<>
+class approx_mul_lut<CPUDevice> : public approx_mul_lut_base {
+    public:
+        explicit approx_mul_lut(OpKernelConstruction *context) : approx_mul_lut_base(
+                context
+                ) {};
+};
 REGISTER_OP("Denseam")
   .Input("input: T")
   .Input("weights: T")
@@ -49,7 +57,8 @@ REGISTER_OP("Denseam")
 template <typename T>
 struct DenseamFunctor<CPUDevice, T>{
     void operator()(const CPUDevice& d, const T* input, const T* weights,
-            T* output, const int batch, const int units, const int input_width
+            T* output, const int batch, const int units, const int input_width,
+            approx_mul_lut<CPUDevice>& mul_lut
             ){
             for(int i = 0; i < batch; i++){
                 for(int j = 0; j < units; j++){
@@ -65,7 +74,8 @@ struct DenseamFunctor<CPUDevice, T>{
 template <typename Device, typename T>
 class DenseamOp: public OpKernel{
     public:
-        explicit DenseamOp(OpKernelConstruction* context): OpKernel(context){
+        explicit DenseamOp(OpKernelConstruction* context): OpKernel(context),
+        mul_lut_(context) {
         }
         void Compute(OpKernelContext* context) override {
             const Tensor& input = context->input(0);
@@ -101,10 +111,14 @@ class DenseamOp: public OpKernel{
                     output_tensor,
                     batch,
                     units,
-                    input_width
+                    input_width,
+                    mul_lut_
                     );
         }
 
+  private:
+  approx_mul_lut<Device> mul_lut_;
+  TF_DISALLOW_COPY_AND_ASSIGN(DenseamOp);
 };
 
 // Register the CPU kernels.
@@ -130,7 +144,8 @@ REGISTER_GPU_DENSEAM(int32);
 template <typename T>
 struct DenseamWeightGradFunctor<CPUDevice, T>{
     void operator()(const CPUDevice& d, const T* input, const T* grads,
-            T* output, const int batch, const int units, const int input_width
+            T* output, const int batch, const int units, const int input_width,
+            approx_mul_lut<CPUDevice>& mul_lut
             ){
             for(int i = 0; i < batch; i++){
                 for(int j = 0; j < units; j++){
@@ -144,7 +159,8 @@ struct DenseamWeightGradFunctor<CPUDevice, T>{
 template <typename T>
 struct DenseamInputGradFunctor<CPUDevice, T>{
     void operator()(const CPUDevice& d, const T* weight, const T* grads,
-            T* output, const int batch, const int units, const int input_width
+            T* output, const int batch, const int units, const int input_width,
+            approx_mul_lut<CPUDevice>& mul_lut
             ){
             for(int i = 0; i < batch; i++)
             for(int i = 0; i < batch; i++){
@@ -167,7 +183,8 @@ REGISTER_OP("DenseamGrad")
 template<typename Device, typename T>
 class DenseamGradOp: public OpKernel {
 public:
-  explicit DenseamGradOp(OpKernelConstruction* context) : OpKernel(context) {
+  explicit DenseamGradOp(OpKernelConstruction* context) : OpKernel(context),
+    mul_lut_(context) {
   }
   void Compute(OpKernelContext* context) override {
 
@@ -200,7 +217,8 @@ public:
             grad_weights,
             batch,
             units,
-            input_width
+            input_width,
+            mul_lut_
             );
     DenseamInputGradFunctor<Device, T>()(
             context->eigen_device<Device>(),    
@@ -209,9 +227,13 @@ public:
             grad_input,
             batch,
             units,
-            input_width
+            input_width,
+            mul_lut_
             );
   }
+  private:
+  approx_mul_lut<Device> mul_lut_;
+  TF_DISALLOW_COPY_AND_ASSIGN(DenseamGradOp);
 };
 // Register the CPU kernels.
 #define REGISTER_CPU_DENSEAMGRAD(T)                                          \

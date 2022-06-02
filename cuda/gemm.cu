@@ -10,7 +10,8 @@ using namespace tensorflow;
    #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));
    #include "FPmultMBM_fast32.inl"
 #elif FMBM16_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
+    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b), mant_lut, exp_lut);
+//#define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
     #include "FPmultMBM_fast16.inl"
 #elif FMBM14_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast14((a),(b));
@@ -47,7 +48,8 @@ using namespace tensorflow;
 template <typename T>
 __global__ void gemm(size_t m, size_t n, size_t k,
     const T *a, size_t lda, const T *b, size_t ldb,
-    T *c, size_t ldc)
+   T *c, size_t ldc, cudaTextureObject_t mant_lut,
+   cudaTextureObject_t exp_lut)
 {
     T value(0);
 
@@ -89,7 +91,9 @@ __global__ void gemm(size_t m, size_t n, size_t k,
 
 template __global__ void gemm<float>(size_t m, size_t n, size_t k,
     const float *a, size_t lda, const float *b, size_t ldb,
-    float *c, size_t ldc);
+   float *c, size_t ldc, cudaTextureObject_t mant_lut,
+   cudaTextureObject_t exp_lut);
 template __global__ void gemm<int32>(size_t m, size_t n, size_t k,
     const int32 *a, size_t lda, const int32 *b, size_t ldb,
-    int32 *c, size_t ldc);
+   int32 *c, size_t ldc, cudaTextureObject_t mant_lut,
+   cudaTextureObject_t exp_lut);

@@ -17,11 +17,11 @@ static inline void gpuAssert(const char *file, int line){
 }
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=false)
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaSuccess)
    {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      fprintf(stderr,"GPUassert: code %d %s %s %d\n", code, cudaGetErrorString(code), file, line);
       if (abort) exit(code);
    }
 }

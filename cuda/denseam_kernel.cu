@@ -2,7 +2,8 @@
 
 #include "gpu_kernel_helper.h"
 #include "error.cuh"
-#include "../denseam.h"
+#include "denseam.h"
+#include "approx_mul_lut.h"
 
 using namespace tensorflow;
 using GpuDevice = Eigen::GpuDevice;
@@ -11,7 +12,7 @@ using GpuDevice = Eigen::GpuDevice;
    #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));
    #include "FPmultMBM_fast32.inl"
 #elif FMBM16_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
+    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b), lut, exp_lut);
     #include "FPmultMBM_fast16.inl"
 #elif FMBM14_MULTIPLIER
     #define MULTIPLY(a,b) FPmultMBM_fast14((a),(b));
@@ -51,7 +52,10 @@ __global__ void DenseamKernel(
     const int batch, 
     const int units, 
     const int input_width, 
-    T* output) 
+    T* output, 
+    cudaTextureObject_t lut,
+    cudaTextureObject_t exp_lut
+    ) 
 { 
     unsigned int ix = blockIdx.x * blockDim.x + threadIdx.x; 
     if(ix < units*batch)
@@ -68,11 +72,12 @@ __global__ void DenseamKernel(
 template <typename T>
 void DenseamFunctor<GpuDevice, T>::operator()(
         const GpuDevice& d, const T* inputs, const T* weights, T* output,
-        const int batch, const int units, const int input_width
-        ) {
+        const int batch, const int units, const int input_width,
+        approx_mul_lut<GpuDevice>& mul_lut )
+{ 
         unsigned blocksize = 1024;
         unsigned gridsize = (batch*units+blocksize -1)/blocksize;
-        DenseamKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(inputs, weights, batch, units, input_width, output);
+        DenseamKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(inputs, weights, batch, units, input_width, output, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
         gpuErrchk( cudaPeekAtLastError() );
         gpuErrchk( cudaDeviceSynchronize() );
 }
@@ -84,7 +89,10 @@ __global__ void DenseamWeightsKernel(
     const int input_width, 
     const int batch, 
     const int units, 
-    T* grad_weights) 
+    T* grad_weights,
+    cudaTextureObject_t lut,
+    cudaTextureObject_t exp_lut
+    ) 
 { 
     unsigned int ix = blockIdx.x * blockDim.x + threadIdx.x; 
     if(ix < units*input_width)
@@ -101,11 +109,12 @@ __global__ void DenseamWeightsKernel(
 template <typename T>
 void DenseamWeightGradFunctor<GpuDevice, T>::operator()
     (const GpuDevice& d, const T* input, const T* grads,
-            T* output, const int batch, const int units, const int input_width
-            ){
+            T* output, const int batch, const int units, const int input_width,
+            approx_mul_lut<GpuDevice>& mul_lut ) 
+            {
     unsigned blocksize = 1024;
     unsigned gridsize = (units*input_width+blocksize -1)/blocksize;
-    DenseamWeightsKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, input, input_width, batch, units, output);
+    DenseamWeightsKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, input, input_width, batch, units, output, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }
@@ -116,7 +125,10 @@ __global__ void DenseamInputKernel(
     const int input_width, 
     const int batch, 
     const int units, 
-    T* grad_inputs) 
+    T* grad_inputs, 
+    cudaTextureObject_t lut,
+    cudaTextureObject_t exp_lut
+    ) 
 { 
     unsigned int ix = blockIdx.x * blockDim.x + threadIdx.x; 
     if(ix < batch *input_width)
@@ -134,11 +146,12 @@ __global__ void DenseamInputKernel(
 template <typename T>
 void DenseamInputGradFunctor<GpuDevice, T>::operator()
     (const GpuDevice& d, const T* weight, const T* grads,
-            T* output, const int batch, const int units, const int input_width
+            T* output, const int batch, const int units, const int input_width,
+            approx_mul_lut<GpuDevice>& mul_lut
             ){
     unsigned blocksize = 1024;
     unsigned gridsize = (batch*input_width+blocksize -1)/blocksize;
-    DenseamInputKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, weight, input_width, batch, units, output);
+    DenseamInputKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, weight, input_width, batch, units, output, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }

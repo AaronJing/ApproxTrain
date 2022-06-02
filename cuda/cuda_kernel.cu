@@ -13,6 +13,12 @@
 #include "gemm.cuh"
 #include "reverseNswapdim23.cuh"
 #include "convam.h"
+#include "approx_mul_lut.h"
+#include <vector>
+#include <fstream>
+#include <iostream>
+#include <algorithm>
+#include <iterator>
 
 using namespace tensorflow;
 //using namespace std;
@@ -26,6 +32,84 @@ using CPUDevice = Eigen::ThreadPoolDevice;
 //     gettimeofday(&tp, &tzp);
 //     return tp.tv_sec + tp.tv_usec * 1e-6;
 // }
+//template<>
+//class approx_mul_lut<Eigen::GpuDevice> : public approx_mul_lut_base {
+    //public:
+        //explicit approx_mul_lut(tensorflow::OpKernelConstruction* context);
+        //~approx_mul_lut();
+        //auto get_mant_mul_lut_text_() -> cudaTextureObject_t& {
+            //return mant_mul_lut_text_;
+        //}
+        //auto get_exp_mul_lut_text_() -> cudaTextureObject_t& {
+            //return exp_mul_lut_text_;
+        //}
+////   private:
+////       uint32_t* mant_mul_lut_cuda_;
+////       uint32_t* exp_mul_lut_cuda_;
+////       cudaTextureObject_t mant_mul_lut_text_;
+////       cudaTextureObject_t exp_mul_lut_text_;
+//
+//};
+//approx_mul_lut<GPUDevice>::approx_mul_lut(OpKernelConstruction * context):
+            //approx_mul_lut_base(context){
+//
+    //gpuErrchk(cudaMalloc(&mant_mul_lut_cuda_, 
+            //mant_mul_lut_.size() * sizeof(uint32_t)));
+    //std::cout << "size of lut: "<< mant_mul_lut_.size() << std::endl;
+    //gpuErrchk(cudaMemcpy(mant_mul_lut_cuda_, mant_mul_lut_.data(),
+            //mant_mul_lut_.size()*sizeof(uint32_t), 
+            //cudaMemcpyHostToDevice));
+    //cudaResourceDesc mant_mul_lut_res_desc;
+    //memset(&mant_mul_lut_res_desc, 0, sizeof(cudaResourceDesc));
+    //mant_mul_lut_res_desc.resType = cudaResourceTypeLinear;
+    //mant_mul_lut_res_desc.res.linear.devPtr = mant_mul_lut_cuda_;
+    //mant_mul_lut_res_desc.res.linear.desc.f = 
+        //cudaChannelFormatKindUnsigned;
+    //mant_mul_lut_res_desc.res.linear.desc.x = 32;
+    //mant_mul_lut_res_desc.res.linear.sizeInBytes = 
+        //mant_mul_lut_.size() * sizeof(uint32_t);
+    //
+    //cudaTextureDesc mant_mul_text_desc;
+    //memset(&mant_mul_text_desc, 0, sizeof(cudaTextureDesc));
+    //mant_mul_text_desc.readMode = cudaReadModeElementType;
+        //
+    //gpuErrchk(cudaCreateTextureObject(&mant_mul_lut_text_, &mant_mul_lut_res_desc, 
+            //&mant_mul_text_desc, nullptr));                
+    //std::cout << "mant mul texture created" << std::endl;
+//
+    //gpuErrchk(cudaMalloc(&exp_mul_lut_cuda_, 
+            //exp_mul_lut_.size() * sizeof(uint32_t)));
+    //gpuErrchk(cudaMemcpy(exp_mul_lut_cuda_, exp_mul_lut_.data(),
+            //exp_mul_lut_.size()*sizeof(uint32_t), 
+            //cudaMemcpyHostToDevice));
+    //std::cout << "size of exp lut: "<< exp_mul_lut_.size() << std::endl;
+    //cudaResourceDesc exp_mul_lut_res_desc;
+    //memset(&exp_mul_lut_res_desc, 0, sizeof(cudaResourceDesc));
+    //exp_mul_lut_res_desc.resType = cudaResourceTypeLinear;
+    //exp_mul_lut_res_desc.res.linear.devPtr = exp_mul_lut_cuda_;
+    //exp_mul_lut_res_desc.res.linear.desc.f = 
+        //cudaChannelFormatKindUnsigned;
+    //exp_mul_lut_res_desc.res.linear.desc.x = 32;
+    //exp_mul_lut_res_desc.res.linear.sizeInBytes = 
+        //exp_mul_lut_.size() * sizeof(uint32_t);
+    //
+    //cudaTextureDesc exp_mul_text_desc;
+    //memset(&exp_mul_text_desc, 0, sizeof(cudaTextureDesc));
+    //exp_mul_text_desc.readMode = cudaReadModeElementType;
+        //
+    //gpuErrchk(cudaCreateTextureObject(&exp_mul_lut_text_, &exp_mul_lut_res_desc, 
+            //&exp_mul_text_desc, nullptr));                
+    //std::cout << "exp mul texture created" << std::endl;
+//};
+//
+//approx_mul_lut<GPUDevice>::~approx_mul_lut(){
+    //cudaDestroyTextureObject(mant_mul_lut_text_);
+    //cudaFree(mant_mul_lut_cuda_);
+    //std::cout << "texture freed" << std::endl;
+    //cudaDestroyTextureObject(exp_mul_lut_text_);
+    //cudaFree(exp_mul_lut_cuda_);
+    //std::cout << "texture freed" << std::endl;
+//};
 
 
 __device__ float bitmasking(float num){
@@ -100,7 +184,10 @@ void im2colLauncher(
     gpuErrchk( cudaDeviceSynchronize() );
 
 }
-
+template <typename T>
+__global__ void test(cudaTextureObject_t lut, T *arr, int pos){
+    arr[pos] = (T)tex1Dfetch<uint32_t>(lut, pos); 
+}
 template <typename T>
 void ConvamKernelLauncher(
     const GPUDevice &d,
@@ -122,7 +209,8 @@ void ConvamKernelLauncher(
     const int left_offset,
     const int top_offset,
     const int padding,
-    T* output
+    T* output,
+    approx_mul_lut<GPUDevice>& mul_lut
   ){
 
     if (filter_row == 1 && filter_col == 1 && stride_row == 1 &&
@@ -137,7 +225,7 @@ void ConvamKernelLauncher(
         //const int size = m*n;
         dim3 blockSize(16, 16, 1);
         dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-        gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
+        gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output, ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
         gpuErrchk( cudaPeekAtLastError() );
         gpuErrchk( cudaDeviceSynchronize() );
         return;
@@ -153,7 +241,7 @@ void ConvamKernelLauncher(
          //const int size = m*n;
          dim3 blockSize(16, 16, 1);
          dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-         gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc);
+         gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
          gpuErrchk( cudaPeekAtLastError() );
          gpuErrchk( cudaDeviceSynchronize() );
          return;
@@ -167,10 +255,91 @@ void ConvamKernelLauncher(
     const size_t ldc = out_depth;
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,filter,ldb,output,ldc);
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,filter,ldb,output,ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
+}
+
+
+void loadLUTandCreateTextureObject(uint32_t* mant_lut, uint32_t* exp_lut, 
+        cudaTextureObject_t* mant_lut_texture,
+        cudaTextureObject_t* exp_lut_texture){
+    // load into vector
+    // copy to cuda mem
+    // create texture obj
+
+
+    // mant mul
+    std::vector<uint32_t> approx_mnt_mul_lookuptable = {};
+    std::ifstream file("mbmmantmul16.bin", std::ios::in|std::ios::binary);
+    if(file.fail()) {
+        std::cerr << "file mbmmantmul16.bin failed" << std::endl;
+        exit(1);
+    } 
+    if(!file.is_open()) { 
+        std::cerr << "file mbmmantmul16.bin open failed" << std::endl;
+        exit(1);
+    }
+    approx_mnt_mul_lookuptable.resize(128*128);
+    file.read(reinterpret_cast<char *>(approx_mnt_mul_lookuptable.data()), 
+            approx_mnt_mul_lookuptable.size() * sizeof(uint32_t));
+
+    cudaMemcpy(mant_lut, approx_mnt_mul_lookuptable.data(), 
+            approx_mnt_mul_lookuptable.size() * sizeof(uint32_t),
+            cudaMemcpyHostToDevice);
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+    
+    cudaResourceDesc lookupTableResDesc;
+    memset(&lookupTableResDesc, 0, sizeof(cudaResourceDesc));
+    lookupTableResDesc.resType = cudaResourceTypeLinear;
+    lookupTableResDesc.res.linear.devPtr = mant_lut;
+    lookupTableResDesc.res.linear.desc.f = cudaChannelFormatKindUnsigned;
+    lookupTableResDesc.res.linear.desc.x = 32;
+    lookupTableResDesc.res.linear.sizeInBytes = 
+        approx_mnt_mul_lookuptable.size() * sizeof(uint32_t);
+    
+    cudaTextureDesc lookupTableTexDesc;
+    memset(&lookupTableTexDesc, 0, sizeof(cudaTextureDesc));
+    lookupTableTexDesc.readMode = cudaReadModeElementType;
+    
+    gpuErrchk(cudaCreateTextureObject(mant_lut_texture, &lookupTableResDesc,
+            &lookupTableTexDesc, nullptr));
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    // exp lut
+    std::vector<uint32_t> exp_lookuptable = {};
+    std::ifstream exp_file("exp.bin", std::ios::in|std::ios::binary);
+    if(exp_file.fail()) exit(1);
+    if(!exp_file.is_open()) exit(1);
+    exp_lookuptable.resize(2*2*256);
+    exp_file.read(reinterpret_cast<char *>(exp_lookuptable.data()),
+            exp_lookuptable.size() * sizeof(uint32_t));
+
+    cudaMemcpy(exp_lut, exp_lookuptable.data(),
+            exp_lookuptable.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+    
+    cudaResourceDesc exp_lookupTableResDesc;
+    memset(&exp_lookupTableResDesc, 0, sizeof(cudaResourceDesc));
+    exp_lookupTableResDesc.resType = cudaResourceTypeLinear;
+    exp_lookupTableResDesc.res.linear.devPtr = exp_lut;
+    exp_lookupTableResDesc.res.linear.desc.f = cudaChannelFormatKindUnsigned;
+    exp_lookupTableResDesc.res.linear.desc.x = 32;
+    exp_lookupTableResDesc.res.linear.sizeInBytes = 
+        exp_lookuptable.size() * sizeof(uint32_t);
+    
+    cudaTextureDesc exp_lookupTableTexDesc;
+    memset(&exp_lookupTableTexDesc, 0, sizeof(cudaTextureDesc));
+    exp_lookupTableTexDesc.readMode = cudaReadModeElementType;
+    
+    cudaCreateTextureObject(exp_lut_texture, &exp_lookupTableResDesc,
+            &exp_lookupTableTexDesc, nullptr);
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 #define loop1D(i,n) for(int i = 0; i < n; ++i)
 #define loop1Da(i,n,inc) for(int i = 0; i < n; i+=inc)
@@ -183,8 +352,10 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
         const int filter_left_offset, const int filter_top_offset,
         const int filter_rows, const int filter_cols, const int in_depth,
         const int input_cols, const int input_rows, const T* filter,
-        T* im2col, const int padding
+        T* im2col, const int padding, approx_mul_lut<GPUDevice>& mul_lut
         ) {
+    auto mul_text = mul_lut.get_mant_mul_lut_text_();
+    auto exp_text = mul_lut.get_exp_mul_lut_text_();
     // this is a very primitive tiling function. I mean VERY.
     //TODO Simplify the cases
     int const oneinputsize = input_rows * input_cols * in_depth;
@@ -212,7 +383,8 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     filter_left_offset,
                     filter_top_offset,
                     padding,
-                    output_data
+                    output_data,
+                    mul_lut
                     );
         } else {
             loop1Da(i, batch, max_batch) {
@@ -235,7 +407,8 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     filter_left_offset,
                     filter_top_offset,
                     padding,
-                    output_data + i * oneoutputsize
+                    output_data + i * oneoutputsize,
+                    mul_lut
                     );
             }
         }
@@ -258,7 +431,8 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     filter_left_offset,
                     filter_top_offset,
                     padding,
-                    output_data
+                    output_data,
+                    mul_lut
                     );
     } else {
         size_t const block_size = 16;
@@ -282,7 +456,8 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     filter_left_offset,
                     filter_top_offset,
                     padding,
-                    output_data
+                    output_data,
+                    mul_lut
                     );
         } else {
             loop1Da(i, batch, max_batch){
@@ -305,11 +480,13 @@ void ConvamFunctor<GPUDevice, T>::operator()(const GPUDevice& d,
                     filter_left_offset,
                     filter_top_offset,
                     padding,
-                    output_data + i * oneoutputsize
+                    output_data + i * oneoutputsize,
+                    mul_lut
                     );
             }
         }
     }
+
 }
 
 
@@ -396,7 +573,8 @@ void ConvamFilterGradKernelLauncher(
     const int stride_col,
     const int filter_width,
     const int filter_height,
-    T* out
+    T* out, 
+    approx_mul_lut<GPUDevice>& mul_lut
 ){
 
     im2colLauncher_filtergrad<T>(d,input,batch,input_height,input_width,grad_height,grad_width,grad_channel,in_depth,filter_height,filter_width,stride_row,stride_col,\
@@ -409,7 +587,7 @@ void ConvamFilterGradKernelLauncher(
     const size_t ldc = n;
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,grad,ldb,out,ldc);
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,grad,ldb,out,ldc,mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 };
@@ -422,7 +600,7 @@ void ConvamFilterGradFunctor<Eigen::GpuDevice, T>::operator()(
         const int out_rows,const int out_depth, const int filter_left_offset,
         const int filter_top_offset, const int stride_rows,
         const int stride_cols, const int filter_cols, const int filter_rows,
-        T* output
+        T* output, approx_mul_lut<GPUDevice>& mul_lut
         ) {
     ConvamFilterGradKernelLauncher<T>(
             d,
@@ -442,7 +620,8 @@ void ConvamFilterGradFunctor<Eigen::GpuDevice, T>::operator()(
             stride_cols,
             filter_cols,
             filter_rows,
-            output
+            output,
+            mul_lut
             );
 }
 template <typename T>
@@ -540,7 +719,8 @@ void ConvamInputGradKernelLauncher(
     const int input_height,
     const int input_width,
     const int input_channel,
-    T* output
+    T* output,
+    approx_mul_lut<GPUDevice>& mul_lut
 ){
 
     im2colLauncher_inputgrad<T>(
@@ -560,7 +740,7 @@ void ConvamInputGradKernelLauncher(
     gpuErrchk( cudaDeviceSynchronize() );
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc);
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc,mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -574,7 +754,8 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
         const int filter_rows, const int filter_cols, const int out_depth,
         const int stride_rows, const int stride_cols, const int batch,
         const int input_rows, const int input_cols, const int in_depth,
-        T* output, const int out_rows, const int out_cols
+        T* output, const int out_rows, const int out_cols, 
+        approx_mul_lut<GPUDevice>& mul_lut
         ){
     // a very primitive tiling, I mean VERY
     //auto const oneinputsize = input_rows*input_cols*in_depth;
@@ -603,7 +784,8 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
                 input_rows,
                 input_cols,
                 in_depth,
-                output
+                output,
+                mul_lut
                 );
     } else {
         loop1Da(i, batch, max_batch){
@@ -627,7 +809,8 @@ void ConvamInputGradFunctor<Eigen::GpuDevice, T>::operator()(
                      input_rows,
                      input_cols,
                      in_depth,
-                     output + i*oneoutputsize
+                     output + i*oneoutputsize,
+                     mul_lut
                 );
         }
     }

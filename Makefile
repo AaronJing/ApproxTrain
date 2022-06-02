@@ -9,51 +9,75 @@ TF_LFLAGS := $(shell python3 -c 'import tensorflow as tf; print(" ".join(tf.sysc
 CPPFLAGS += $(TF_CFLAGS)
 LDFLAGS += $(TF_LFLAGS)
 
-BINARY = convam_gpu.so
-OBJ = convam.o
+CONV_BINARY = convam_gpu.so
+CONV_OBJ = convam.o
+DENSE_BINARY = denseam_gpu.so
+DENSE_OBJ = denseam.o
 
 CUDA_ROOT = /usr/local/cuda
 CUDA_LIB ?= $(CUDA_ROOT)/lib64
-CUDA_OBJ = cuda_kernel.cu.o  gemm.cu.o reverseNswapdim23.cu.o
+CONV_CUDA_OBJ = cuda_kernel.cu.o  gemm.cu.o reverseNswapdim23.cu.o approx_mul_lut.cu.o 
 NVCC ?= nvcc
 CUDA_CFLAGS += -g  -O2 -std=c++11 $(CUDA_ARCH) -Xcompiler -Wall -Xcompiler -fPIC  -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored --expt-relaxed-constexpr
 CUDA_LDFLAGS = -L$(CUDA_LIB) -lcudart
-OBJ += $(CUDA_OBJ)
-
+CONV_OBJ += $(CONV_CUDA_OBJ)
+DENSE_CUDA_OBJ = denseam_kernel.cu.o approx_mul_lut.cu.o
+DENSE_OBJ += $(DENSE_CUDA_OBJ)
 ifeq  ($(MULTIPLIER),)
     MULTIPLIER_CPPFLAG =
 else
 	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
 endif
+ifeq  ($(OPT),)
+    OPT_FLAG = -D OPTIMIZATION=0
+else ifeq ($(OPT),1)
+	OPT_FLAG = -D OPTIMIZATION=1
+else 
+	OPT_FLAG = -D OPTIMIZATION=2
+endif
 
 .PHONY: clean test
 
-all: $(BINARY)
+all: $(CONV_BINARY) $(DENSE_BINARY)
 
-$(BINARY): $(OBJ)
-	$(CXX) $(CFLAGS) -shared $(OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
+convam: $(CONV_BINARY)
+	
+denseam: $(DENSE_BINARY)
 
-test_bin: $(OBJ)
-	$(CXX)  $(CFLAGS) $(CPPFLAGS) $(OBJ) test/test.cpp $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
+$(CONV_BINARY): $(CONV_OBJ)
+	$(CXX) $(CFLAGS) -shared $(CONV_OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
+
+$(DENSE_BINARY): $(DENSE_OBJ)
+	$(CXX) $(CFLAGS) -shared $(DENSE_OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
+
+test_bin: $(CONV_OBJ)
+	$(CXX)  $(CFLAGS) $(CPPFLAGS) $(CONV_OBJ) test/test.cpp $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
 
 convam.o: convam.cc convam.h
 	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
+denseam.o: denseam.cc denseam.h 
+	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
 
 # header deps
-gemm_inc_deps = cuda/FPmultMBM_fast10.inl  cuda/FPmultMBM_fast14.inl  cuda/FPmultMBM_fast32.inl  cuda/Mitchell_12.inl  cuda/Mitchell_16.inl cuda/FPmultMBM_fast12.inl  cuda/FPmultMBM_fast16.inl  cuda/Mitchell_10.inl       cuda/Mitchell_14.inl  cuda/Mitchell_32.inl
+mul_inc_deps = cuda/FPmultMBM_fast10.inl  cuda/FPmultMBM_fast14.inl  cuda/FPmultMBM_fast32.inl  cuda/Mitchell_12.inl  cuda/Mitchell_16.inl cuda/FPmultMBM_fast12.inl  cuda/FPmultMBM_fast16.inl  cuda/Mitchell_10.inl       cuda/Mitchell_14.inl  cuda/Mitchell_32.inl
 
 # cuda stuff
-cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cuda/gemm.cuh cuda/reverseNswapdim23.cuh
+denseam_kernel.cu.o : cuda/denseam_kernel.cu cuda/error.cuh $(mul_inc_deps) 
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $(OPT_FLAG) -c $< -o $@
+cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cuda/gemm.cuh cuda/reverseNswapdim23.cuh 
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) --expt-relaxed-constexpr -c $< -o $@
 
-gemm.cu.o: cuda/gemm.cu $(gemm_inc_deps)
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) -c $< -o $@
+gemm.cu.o: cuda/gemm.cu $(mul_inc_deps)
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $(OPT_FLAG) -c $< -o $@
 
 reverseNswapdim23.cu.o: cuda/reverseNswapdim23.cu
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@
+
+approx_mul_lut.cu.o: cuda/approx_mul_lut.cu cuda/error.cuh 
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
 	rm -f *.o *.so
 
-test: $(BINARY)
+test: $(CONV_BINARY) $(DENSE_BINARY)
 	python3 mnist_example.py

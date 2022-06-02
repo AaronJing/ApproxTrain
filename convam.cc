@@ -1,4 +1,5 @@
 #include "convam.h"
+#include "approx_mul_lut.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/platform/default/logging.h"
@@ -407,6 +408,18 @@ Status ComputeConv2DDimension(const Conv2DParameters& params,
 #undef TF_REQUIRES
 
 
+
+/****************************  start of lut cpu specialization **********************************/
+template<>
+class approx_mul_lut<CPUDevice> : public approx_mul_lut_base {
+    public:
+        explicit approx_mul_lut(OpKernelConstruction *context) : approx_mul_lut_base(
+                context
+                ) {};
+};
+/****************************  end of lut cpu specialization **********************************/
+
+
 /**************************** Our custom op implementation **********************************/
 
 /*---------------------------- custom convolution operation --------------------*/
@@ -431,7 +444,8 @@ struct ConvamFunctor<CPUDevice, T> {
             const int filter_left_offset, const int filter_top_offset,
             const int filter_rows, const int filter_cols, const int in_depth,
             const int input_cols, const int input_rows, const T* filter,
-            const T* im2col, const int padding
+            const T* im2col, const int padding,
+            approx_mul_lut<CPUDevice>& mul_lut
           ) {
 
     for (int batch_ = 0; batch_ < batch; ++batch_) {
@@ -480,7 +494,8 @@ struct ConvamFunctor<CPUDevice, T> {
 template <typename Device, typename T>
 class ConvamOp : public OpKernel{
 public:
-  explicit ConvamOp(OpKernelConstruction* context) : OpKernel(context) {
+  explicit ConvamOp(OpKernelConstruction* context) : OpKernel(context), 
+    mul_lut_(context) {
     OP_REQUIRES_OK(context, InitConv2DParameters(context, &params_));
   }
   void Compute(OpKernelContext* context) override {
@@ -528,6 +543,8 @@ public:
             OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::v(), TensorShape({size_shape}), &im2col));
         }
     }
+    // allocate gpu mem for lut
+    
     auto output_data = output->flat<T>().data();
     auto input_data = input.flat<T>().data();
     auto filter_data = filter.flat<T>().data();
@@ -571,11 +588,13 @@ public:
             dimensions.input_rows,
             filter_data,
             im2col_data,
-            params_.padding
+            params_.padding,
+            mul_lut_
             );
   }
   private:
-    Conv2DParameters params_;
+  approx_mul_lut<Device> mul_lut_;
+  Conv2DParameters params_;
   TF_DISALLOW_COPY_AND_ASSIGN(ConvamOp);
 };
 
@@ -613,7 +632,7 @@ struct ConvamFilterGradFunctor<CPUDevice, T>{
           const int out_depth, const int filter_left_offset,
           const int filter_top_offset, const int stride_rows,
           const int stride_cols, const int filter_cols, const int filter_rows,
-          T* output
+          T* output, approx_mul_lut<CPUDevice>& mul_lut
           ){
 
     for (int out_y = 0; out_y < filter_rows; ++out_y) {
@@ -688,7 +707,7 @@ REGISTER_OP("ConvamFilterGrad")
 template <typename Device, typename T>
 class ConvamFilterGradOp: public OpKernel {
 public:
-  explicit ConvamFilterGradOp(OpKernelConstruction * context): OpKernel(context){
+  explicit ConvamFilterGradOp(OpKernelConstruction * context): OpKernel(context), mul_lut_(context){
      string data_format;
     OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
     OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
@@ -839,10 +858,12 @@ public:
             stride_cols,
             filter_width,
             filter_height,
-            out
+            out,
+            mul_lut_
             );
   }
   private:
+  approx_mul_lut<Device> mul_lut_;
   std::vector<int32> dilations_;
   std::vector<int32> strides_;
   Padding padding_;
@@ -881,7 +902,8 @@ struct ConvamInputGradFunctor<CPUDevice, T> {
           const int filter_rows, const int filter_cols, const int out_depth,
           const int stride_rows, const int stride_cols, const int batch,
           const int input_rows, const int input_cols, const int in_depth,
-          T* output, const int out_rows, const int out_cols
+          T* output, const int out_rows, const int out_cols,
+          approx_mul_lut<CPUDevice>& mul_lut
           ){
     for (int ibatch = 0; ibatch < batch; ++ibatch) {
         for (int out_y = 0; out_y < input_rows; ++out_y) {
@@ -951,7 +973,7 @@ REGISTER_OP("ConvamInputGrad")
 template <typename Device, typename T>
 class ConvamInputGradOp: public OpKernel {
     public:
-     explicit ConvamInputGradOp(OpKernelConstruction* context): OpKernel(context) {
+     explicit ConvamInputGradOp(OpKernelConstruction* context): OpKernel(context),mul_lut_(context) {
        string data_format;
        OP_REQUIRES_OK(context, context->GetAttr("data_format", &data_format));
        OP_REQUIRES(context, FormatFromString(data_format, &data_format_),
@@ -1105,10 +1127,12 @@ class ConvamInputGradOp: public OpKernel {
                 input_channel,
                 out,
                 grad_height,
-                grad_width
+                grad_width,
+                mul_lut_
                 );
      }
   private:
+  approx_mul_lut<Device> mul_lut_;
   std::vector<int32> dilations_;
   std::vector<int32> strides_;
   Padding padding_;
