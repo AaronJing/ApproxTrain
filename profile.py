@@ -69,10 +69,10 @@ class timecallback(tf.keras.callbacks.Callback):
     def __init__(self):
         pass
     def on_train_batch_begin(self,batch,logs = {}):
-        self.start_time = datetime.datetime.now().microsecond
+        self.start_time = datetime.datetime.now()
     def on_train_batch_end(self,batch,logs = {}):
-        self.elapsed = datetime.datetime.now().microsecond - self.start_time
-        print("Elapsed time: ", int(self.elapsed))
+        self.elapsed = datetime.datetime.now() - self.start_time
+        print("Elapsed time: ", int(self.elapsed.total_seconds()*1000000))
 mycallback = timecallback()
 model.fit(
         x_train[:test_batch*batch_size],

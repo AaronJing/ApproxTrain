@@ -49,6 +49,9 @@ class approx_mul_lut_base {
         auto get_exp_mul_lut_text_() -> cudaTextureObject_t& {
             return exp_mul_lut_text_;
         }
+        auto get_mant_mul_lut_() -> uint32_t* {
+            return mant_mul_lut_cuda_;
+        }
     protected:
         std::vector<uint32_t> mant_mul_lut_;
         std::vector<uint32_t> exp_mul_lut_;

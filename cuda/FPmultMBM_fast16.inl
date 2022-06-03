@@ -43,7 +43,7 @@ __device__ uint32_t fn_mul_mbmmant16(uint32_t Amnt, uint32_t Bmnt)
 
 //******************************************************************************************************************************************
 #if (OPTIMIZATION == 0) 
-__device__ __inline__  float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut)
+__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
 {
     // type casting
     uint32_t  at = *(uint32_t *)&Af;
@@ -134,7 +134,7 @@ __device__ __inline__  float FPmultMBM_fast16(float Af, float Bf, cudaTextureObj
 
 }
 #elif (OPTIMIZATION == 1)
-__device__ __inline__  float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut)
+__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
 {
     // type casting
     uint32_t  at = *(uint32_t *)&Af;
@@ -232,9 +232,9 @@ __device__ __inline__  float FPmultMBM_fast16(float Af, float Bf, cudaTextureObj
 
 }
 
-#else 
+#elif (OPTIMIZATION == 2) 
 
-__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut)
+__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
 {
     // type casting
     uint32_t  at = *(uint32_t *)&Af;
@@ -343,6 +343,111 @@ __device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObje
    Oi = Oi & INPUT16_MASK;
 
     Oft = *(float*)&Oi;
+
+    //=============================================================================
+
+	return Oft;
+
+}
+#else
+__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
+{
+    // type casting
+    uint32_t  at = *(uint32_t *)&Af;
+	uint32_t  bt = *(uint32_t *)&Bf;
+
+    at = at & INPUT16_MASK;
+    bt = bt & INPUT16_MASK;
+
+	// Extracting mantissa bits: bitwise anding
+	uint32_t  Amnt = (MANTISSA_MASK & at);
+	uint32_t  Bmnt = (MANTISSA_MASK & bt);
+
+    // Approximate Mantissa calculation
+    // 40 % of total computation time
+    //uint32_t Mbm_mantmult = 0;
+//    uint32_t Mbm_mantmult = fn_mul_mbmmant16(Amnt, Bmnt);  // Passing without hidden bit
+    uint32_t Mbm_mantmult = lut_mem[(int)((Amnt&MANTISSA_TRUNC_MASK)>>9) | ((Bmnt&MANTISSA_TRUNC_MASK)>>16)];
+    // get is_accurate_normalized bit
+    bool is_accurate_normalized = (bool)(Mbm_mantmult&1);
+    // get is_approx_normalized bit
+    bool is_approx_normalized = (bool)((Mbm_mantmult&2)>>1);
+    // clear is_accurate_normalized bit, is_normalized_bit 
+    Mbm_mantmult = (Mbm_mantmult>>2)<<2;
+//   // Accurate mantissa calculation
+   float Oft;
+//   //--------------------------------------------------------------------------
+//   // Accurate FP multiplication
+   float    Ofacc =  (*(float*)&at)*(*(float*)&bt);
+   //float Ofacc = 0;
+
+
+   uint32_t  Otacc = *(uint32_t *)&(Ofacc);
+
+   //Extracting sign, exponent, mantissa
+   uint32_t  Oaccsgn = (at ^ bt) & SIGN_MASK;            // 2^31 :  {1, 31{0}}
+   uint32_t  Oaccexp = (Otacc & EXPONENT_MASK) >> 23;
+//  uint32_t  Oaccexp = (at & EXPONENT_MASK) + (bt & EXPONENT_MASK);
+//   Oaccexp = (Oaccexp >> 23)-127;
+
+	//--------------------------------------------------------------------------
+//	bool is_approx_normalized = true;
+
+//	bool is_approx_normalized   = (Mbm_mantmult >= 16777216);        // 2^24 {1, 24{0}} because this comes out to be 25-bit: This means approximate mantissa needs to be normalized.
+
+    // start of second lookup table
+//  uint64_t   Acc_mantmul = ((uint64_t)(8388608 | Amnt)) * ((uint64_t)(8388608 | Bmnt));  // appending hidden bit : 2^23
+//bool is_accurate_normalized = 0; // 2^47 {1, 47{0}} because this comes out to be 48-bit: This means accurate mantissa was normalized.  Rounding effect is not handled yet
+//  if(is_accurate_normalized==0){                              // check if normalization happens due to rounding (note, I am assuming rounding-normalization will never happen if original normalization has happened)
+//    uint32_t Acc_mant_kept;             // 1.24 fxp
+//    uint32_t Acc_mant_drop;
+//    uint32_t Acc_mant_rounded;          // 2.23 fxp
+//
+//    bool rb, M0, R, S;
+//
+//    Acc_mant_kept = Acc_mantmul >> 22;                 // Acc_mantmul has 47 bits (because normalization not needed). chop it down to 25 bits.
+//    Acc_mant_drop = Acc_mantmul % 4194304;             // 4194304== 2^22
+//    M0 = ((Acc_mant_kept & 2) != 0);	               // last remaining bit     __x.
+//	R =  ((Acc_mant_kept & 1) != 0);                   // first dropped bit      ___.x
+//	S = (Acc_mant_drop != 0);                                // OR of all remaining bit___._xxxxxxxx
+//	rb = (R & (M0 | S));
+//
+//    Acc_mant_rounded = (Acc_mant_kept >> 1) + rb;
+//
+//    is_accurate_normalized = (Acc_mant_rounded >= 16777216);  // 2^24 {1, 24{0}} because this comes out to be 25-bit(2.23)
+// }
+    // end of second lookup table
+    
+    uint32_t Onewexp = Oaccexp;
+	// Adjustment of exponent
+     if(Oaccexp == 255){ 		// case: inf or NAN
+         return Ofacc;
+     }
+     else if (Oaccexp == 0){ // case: subnormal or 0
+         return float(0);
+     }
+     
+     if(is_accurate_normalized && !is_approx_normalized){
+     	Onewexp = Oaccexp - 1;
+     }
+     
+     if(!is_accurate_normalized && is_approx_normalized){
+     	Onewexp = Oaccexp + 1;
+     }
+
+//    uint32_t Onewexp = tex1Dfetch<uint32_t>(exp_lut, (int)((((uint32_t)is_accurate_normalized)<<9)|(((uint32_t)is_approx_normalized)<<8)|Oaccexp));
+
+	Mbm_mantmult = Mbm_mantmult & MANTISSA_MASK; // getting rid of hidden bit
+
+	uint32_t Os = Oaccsgn;
+    uint32_t Oe = (Onewexp << 23);
+    uint32_t Om = Mbm_mantmult;
+
+    uint32_t Oi = Os + Oe + Om;
+    Oi = Oi & INPUT16_MASK;
+
+    Oft = *(float*)&Oi;
+
 
     //=============================================================================
 

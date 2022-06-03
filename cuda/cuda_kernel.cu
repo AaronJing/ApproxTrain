@@ -225,7 +225,7 @@ void ConvamKernelLauncher(
         //const int size = m*n;
         dim3 blockSize(16, 16, 1);
         dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-        gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output, ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
+        gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output, ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_(), mul_lut.get_mant_mul_lut_());
         gpuErrchk( cudaPeekAtLastError() );
         gpuErrchk( cudaDeviceSynchronize() );
         return;
@@ -241,7 +241,7 @@ void ConvamKernelLauncher(
          //const int size = m*n;
          dim3 blockSize(16, 16, 1);
          dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-         gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
+         gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,inputs,lda,filter,ldb,output,ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_(), mul_lut.get_mant_mul_lut_());
          gpuErrchk( cudaPeekAtLastError() );
          gpuErrchk( cudaDeviceSynchronize() );
          return;
@@ -255,7 +255,7 @@ void ConvamKernelLauncher(
     const size_t ldc = out_depth;
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,filter,ldb,output,ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,filter,ldb,output,ldc, mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_(), mul_lut.get_mant_mul_lut_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -587,7 +587,7 @@ void ConvamFilterGradKernelLauncher(
     const size_t ldc = n;
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,grad,ldb,out,ldc,mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,grad,ldb,out,ldc,mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_(), mul_lut.get_mant_mul_lut_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 };
@@ -740,7 +740,7 @@ void ConvamInputGradKernelLauncher(
     gpuErrchk( cudaDeviceSynchronize() );
     dim3 blockSize(16, 16, 1);
     dim3 gridSize((n + blockSize.x - 1) / blockSize.x, (m + blockSize.y - 1) / blockSize.y, 1);
-    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc,mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_());
+    gemm<T><<<gridSize,blockSize,0,d.stream()>>>(m,n,k,im2col,lda,rsfilter,ldb,output,ldc,mul_lut.get_mant_mul_lut_text_(), mul_lut.get_exp_mul_lut_text_(), mul_lut.get_mant_mul_lut_());
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 

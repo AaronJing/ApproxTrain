@@ -30,10 +30,8 @@ else
 endif
 ifeq  ($(OPT),)
     OPT_FLAG = -D OPTIMIZATION=0
-else ifeq ($(OPT),1)
-	OPT_FLAG = -D OPTIMIZATION=1
 else 
-	OPT_FLAG = -D OPTIMIZATION=2
+	OPT_FLAG = -D OPTIMIZATION=$(OPT)
 endif
 
 .PHONY: clean test
