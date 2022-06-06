@@ -28,6 +28,7 @@ echo "resnet50"
 python3 profile.py --model=resnet50 --batch-size=32 --batch-number=20 --am=1 --gpu=1
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=20 --am=1 --gpu=1
+echo "end NO OPT"
 
 echo "OPT 1lut texture"
 make clean && make convam MULTIPLIER=FMBM16_MULTIPLIER OPT=1 && make denseam_gpu.so MULTIPLIER=FMBM16_MULTIPLIER OPT=1
@@ -43,6 +44,7 @@ echo "resnet50"
 python3 profile.py --model=resnet50 --batch-size=32 --batch-number=20 --am=1 --gpu=1
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=20 --am=1 --gpu=1
+echo"end OPT 1lut texture"
 
 echo "OPT 2lut texture"
 make clean && make convam MULTIPLIER=FMBM16_MULTIPLIER OPT=2 && make denseam_gpu.so MULTIPLIER=FMBM16_MULTIPLIER OPT=2
@@ -58,6 +60,7 @@ echo "resnet50"
 python3 profile.py --model=resnet50 --batch-size=32 --batch-number=20 --am=1 --gpu=1
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=20 --am=1 --gpu=1
+echo "end OPT 2lut texture"
 
 echo "OPT 1lut global"
 make clean && make convam MULTIPLIER=FMBM16_MULTIPLIER OPT=3 && make denseam_gpu.so MULTIPLIER=FMBM16_MULTIPLIER OPT=3
@@ -73,6 +76,7 @@ echo "resnet50"
 python3 profile.py --model=resnet50 --batch-size=32 --batch-number=5 --am=1 --gpu=1
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=5 --am=1 --gpu=1
+echo "end OPT 1lut global"
 #echo "NAVIE CPU ONLY"
 #echo "lenet31"
 #python3 profile.py --model=lenet31 --batch-size=32 --batch-number=20  --am=1 --gpu=0
@@ -100,6 +104,7 @@ echo "resnet50"
 python3 profile.py --model=resnet50 --batch-size=32 --batch-number=20  --gpu=1
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=20  --gpu=1
+echo "end TF GPU"
 
 echo "TF CPU"
 echo "lenet31"
@@ -114,4 +119,5 @@ echo "resnet50"
 python3 profile.py --model=resnet50 --batch-size=32 --batch-number=20  --gpu=0
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=20  --gpu=0
+echo "end TF CPU"
 
