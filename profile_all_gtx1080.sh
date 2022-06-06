@@ -13,7 +13,7 @@ python3 profile.py --model=resnet50 --batch-size=32 --batch-number=5 --am=1 --gp
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=5 --am=1 --gpu=1
 
-echo "OPT 1lut"
+echo "OPT 1lut texture"
 make clean && make convam MULTIPLIER=FMBM16_MULTIPLIER OPT=1 && make denseam_gpu.so MULTIPLIER=FMBM16_MULTIPLIER OPT=1
 echo "lenet31"
 python3 profile.py --model=lenet31 --batch-size=32 --batch-number=5 --am=1 --gpu=1
@@ -28,7 +28,7 @@ python3 profile.py --model=resnet50 --batch-size=32 --batch-number=5 --am=1 --gp
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=5 --am=1 --gpu=1
 
-echo "OPT 2lut"
+echo "OPT 2lut texture"
 make clean && make convam MULTIPLIER=FMBM16_MULTIPLIER OPT=2 && make denseam_gpu.so MULTIPLIER=FMBM16_MULTIPLIER OPT=2
 echo "lenet31"
 python3 profile.py --model=lenet31 --batch-size=32 --batch-number=5 --am=1 --gpu=1
@@ -43,7 +43,7 @@ python3 profile.py --model=resnet50 --batch-size=32 --batch-number=5 --am=1 --gp
 echo "resnet50ImageNet"
 python3 profile.py --model=resnet50ImageNet --batch-size=32 --batch-number=5 --am=1 --gpu=1
 
-echo "OPT linear"
+echo "OPT 1lut global"
 make clean && make convam MULTIPLIER=FMBM16_MULTIPLIER OPT=3 && make denseam_gpu.so MULTIPLIER=FMBM16_MULTIPLIER OPT=3
 echo "lenet31"
 python3 profile.py --model=lenet31 --batch-size=32 --batch-number=5 --am=1 --gpu=1
