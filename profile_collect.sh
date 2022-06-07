@@ -8,7 +8,20 @@ for i in "${experiment[@]}"; do
     else
         MUL=""
     fi
-    make clean && make convam MULTIPLIER=$MUL && make denseam_gpu.so MULTIPLIER=$MUL
+    if [ "$i" = "OPT 1lut texture" ]
+    then
+        OPT="1"
+    elif [ "$i" = "OPT 2lut texture" ]
+    then
+        OPT="2"
+    elif [ "$i" = "OPT 1lut global" ]
+    then
+        OPT="3"
+    else
+        OPT=""
+    fi
+
+    make clean && make convam MULTIPLIER=$MUL OPT=$OPT && make denseam_gpu.so MULTIPLIER=$MUL OPT=$OPT
 for j in "${dnndataset[@]}"; do
     echo $j
     if [ "$i" = "TF GPU" ]
