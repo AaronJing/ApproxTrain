@@ -17,6 +17,9 @@ for i in "${experiment[@]}"; do
     elif [ "$i" = "OPT 1lut global" ]
     then
         OPT="3"
+    elif [ "$i" = "OPT 1lut texture v2" ]
+    then
+        OPT="4"
     else
         OPT=""
     fi
