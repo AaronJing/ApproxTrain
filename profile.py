@@ -75,14 +75,21 @@ class timecallback(tf.keras.callbacks.Callback):
         print("")
         print(args.model," elapsed time: ", int(self.elapsed.total_seconds()*1000000), " batch num ", batch)
         print("")
+    def on_test_batch_begin(self,batch,logs = {}):
+        self.start_time = datetime.datetime.now()
+    def on_test_batch_end(self,batch,logs = {}):
+        self.elapsed = datetime.datetime.now() - self.start_time
+        print("")
+        print(args.model," elapsed time: ", int(self.elapsed.total_seconds()*1000000), " batch num ", batch)
+        print("")
 mycallback = timecallback()
-model.fit(
-        x_train[:test_batch*batch_size],
-        y_train[:test_batch*batch_size],
-        batch_size=batch_size,
-        epochs=1,
-        callbacks=[mycallback],
-        verbose=0
-)
-#model.evaluate(x_train[:test_batch*batch_size], y_train[:test_batch*batch_size], batch_size=batch_size, verbose=1)
+#model.fit(
+        #x_train[:test_batch*batch_size],
+        #y_train[:test_batch*batch_size],
+        #batch_size=batch_size,
+        #epochs=1,
+        #callbacks=[mycallback],
+        #verbose=0
+#)
+model.evaluate(x_train[:test_batch*batch_size], y_train[:test_batch*batch_size], batch_size=batch_size, verbose=0, callbacks=[mycallback])
 #print(args.am)

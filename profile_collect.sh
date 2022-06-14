@@ -32,7 +32,7 @@ for j in "${dnndataset[@]}"; do
         python3 profile.py --model=$j --batch-size=32 --batch-number=5 --gpu=1
     elif [ "$i" = "TF CPU" ]
     then
-        python3 profile.py --model=$j --batch-size=32 --batch-number=5 
+        python3 profile.py --model=$j --batch-size=32 --batch-number=5 --gpu=0 
     elif [ "$i" = "AM CPU" ]
     then
         python3 profile.py --model=$j --batch-size=1 --batch-number=32 --am=1 
