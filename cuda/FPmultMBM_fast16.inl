@@ -6,6 +6,8 @@
 #define MANTISSA_TRUNC_MASK       8323072
 #define MANTISSA_TRUNC_SETBIT     65536
 #define INPUT16_MASK 0xffff0000
+#define CLEAR_NORMALIZED 0x7fffffff
+
 #include <math.h>
 
 // MANTISSA_MASK: 2^23 - 1          :     {9{0}, 23{1}}
@@ -455,7 +457,7 @@ __device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObje
 	return Oft;
 
 }
-#else
+#elif (OPTIMIZATION == 4)
 __device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
 {
     uint32_t  at = *(uint32_t *)&Af;
@@ -494,7 +496,6 @@ __device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObje
 
     Oaccexp = Oaccexp - 127 - (uint32_t)(is_accurate_normalized & (!is_approx_normalized)) + (uint32_t)((!is_accurate_normalized) & is_approx_normalized);
 
-	Mbm_mantmult = Mbm_mantmult & MANTISSA_MASK; // getting rid of hidden bit
 
 
     uint32_t Oi = Oaccsgn + (Oaccexp << 23) + Mbm_mantmult;
@@ -507,5 +508,32 @@ __device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObje
 	return *(float*)&Oi;
 
 }
+#else
+__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
+{
+    uint32_t  at = *(uint32_t *)&Af;
+	uint32_t  bt = *(uint32_t *)&Bf;
 
+
+
+	// Extracting mantissa bits: bitwise anding
+	uint32_t  Amnt = (MANTISSA_MASK & at);
+	uint32_t  Bmnt = (MANTISSA_MASK & bt);
+
+    // Approximate Mantissa calculation
+    uint32_t Mbm_mantmult = uint32_t(tex1Dfetch<uint32_t>(lut, (int)((Amnt)>>9) | ((Bmnt)>>16)));
+    uint32_t is_normalized = (Mbm_mantmult&SIGN_MASK)>>31;
+    Mbm_mantmult = Mbm_mantmult&CLEAR_NORMALIZED;
+
+	uint32_t Oaccsgn = (at ^ bt) & SIGN_MASK;            // 2^31 :  {1, 31{0}}
+    uint32_t Oaccexp = ((at & EXPONENT_MASK)>>23) + ((bt & EXPONENT_MASK)>>23);
+
+    if(Oaccexp <= 127){ 		// case:0
+        return 0;
+    }
+    Oaccexp = Oaccexp - 127 + is_normalized;
+    uint32_t Oi = Oaccsgn + (Oaccexp << 23) + Mbm_mantmult;
+	return *(float*)&Oi;
+
+}
 #endif
