@@ -91,7 +91,9 @@ def amconvolution_internal(
     dilations=None,
     name=None,
     call_from_convolution=True,
-    num_spatial_dims=None):
+    num_spatial_dims=None,
+    mant_mul_lut=''
+    ):
   """Internal function which performs rank agnostic convolution.
 
   Args:
@@ -188,7 +190,9 @@ def amconvolution_internal(
           padding=padding,
           data_format=data_format,
           dilations=dilations,
-          name=name)
+          name=name,
+          mant_mul_lut=mant_mul_lut
+          )
     else:
         raise ValueError("Dilation is not supported in current implementation")
 
@@ -201,7 +205,8 @@ def amconvolution_v2(  # pylint: disable=missing-docstring
     padding="VALID",
     data_format=None,
     dilations=None,
-    name=None):
+    name=None,
+    mant_mul_lut=''):
   return amconvolution_internal(
       input,  # pylint: disable=redefined-builtin
       filters,
@@ -209,7 +214,8 @@ def amconvolution_v2(  # pylint: disable=missing-docstring
       padding=padding,
       data_format=data_format,
       dilations=dilations,
-      name=name)
+      name=name,
+      mant_mul_lut=mant_mul_lut)
 
 @ops.RegisterGradient("Convam")
 def _convam_grad_cc(op,grad):
@@ -218,6 +224,7 @@ def _convam_grad_cc(op,grad):
   strides = op.get_attr("strides")
   padding = op.get_attr("padding")
   data_format = op.get_attr("data_format")
+  mant_mul_lut = op.get_attr("mant_mul_lut")
   # shape_0 input shape_1 filter
   shape_0 = array_ops.shape(op.inputs[0])
   shape_1 = array_ops.shape(op.inputs[1])
@@ -225,9 +232,13 @@ def _convam_grad_cc(op,grad):
           dilations=dilations,
           strides=strides,
           padding=padding,
-          data_format=data_format),
+          data_format=data_format,
+          mant_mul_lut=mant_mul_lut
+          ),
           convam_module.convam_filter_grad(shape_1,op.inputs[0], grad,
           dilations=dilations,
           strides=strides,
           padding=padding,
-          data_format=data_format)]
+          data_format=data_format,
+          mant_mul_lut=mant_mul_lut
+          )]

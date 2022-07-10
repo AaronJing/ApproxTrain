@@ -38,6 +38,7 @@ REGISTER_OP("Denseam")
   .Input("weights: T")
   .Output("output: T")
   .Attr("T: {float, int32}")
+  .Attr("mant_mul_lut: string")
   .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
 
    shape_inference::ShapeHandle input_shape;
@@ -179,7 +180,8 @@ REGISTER_OP("DenseamGrad")
   .Input("weights: T")
   .Output("grad_input: T")
   .Output("grad_weights: T")
-  .Attr("T: {float, int32}");
+  .Attr("T: {float, int32}")
+  .Attr("mant_mul_lut: string");
 template<typename Device, typename T>
 class DenseamGradOp: public OpKernel {
 public:

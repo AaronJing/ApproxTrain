@@ -123,6 +123,7 @@ class denseam(Layer):
                activity_regularizer=None,
                kernel_constraint=None,
                bias_constraint=None,
+               mant_mul_lut='',
                **kwargs):
     super(denseam, self).__init__(
         activity_regularizer=activity_regularizer, **kwargs)
@@ -142,7 +143,7 @@ class denseam(Layer):
 
     self.input_spec = InputSpec(min_ndim=2)
     self.supports_masking = True
-
+    self.mant_mul_lut = mant_mul_lut
   def build(self, input_shape):
     dtype = dtypes.as_dtype(self.dtype or K.floatx())
     if not (dtype.is_floating or dtype.is_complex):
@@ -207,7 +208,7 @@ class denseam(Layer):
             self.kernel, ids, weights, combiner='sum')
       else:
         #outputs = gen_math_ops.MatMul(a=inputs, b=self.kernel)
-        outputs = amdense_module.denseam(inputs, self.kernel)
+        outputs = amdense_module.denseam(inputs, self.kernel, self.mant_mul_lut)
     # Broadcast kernel to inputs.
     else:
       outputs = standard_ops.tensordot(inputs, self.kernel, [[rank - 1], [0]])
@@ -254,4 +255,4 @@ class denseam(Layer):
 
 @ops.RegisterGradient("Denseam")
 def _dense_grad_cc(op, grad):
-    return amdense_module.denseam_grad(grad, op.inputs[0], op.inputs[1]) 
+    return amdense_module.denseam_grad(grad, op.inputs[0], op.inputs[1], op.get_attr("mant_mul_lut")) 

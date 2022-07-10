@@ -9,19 +9,15 @@
 #define INPUT16_MASK 0xffff0000
 #define CLEAR_NORMALIZED 0x7fffffff
 
-__device__ __inline__ float FPmultMBM_fast16(float Af, float Bf, cudaTextureObject_t lut, cudaTextureObject_t exp_lut, uint32_t* lut_mem)
+__device__ __inline__ float AMsimulator(float Af, float Bf, cudaTextureObject_t lut, int mant_mask, int a_shift, int b_shift)
 {
     uint32_t  at = *(uint32_t *)&Af;
 	uint32_t  bt = *(uint32_t *)&Bf;
-
-
-
 	// Extracting mantissa bits: bitwise anding
-	uint32_t  Amnt = (MANTISSA_MASK & at);
-	uint32_t  Bmnt = (MANTISSA_MASK & bt);
-
+	uint32_t  Amnt = (mant_mask & at);
+	uint32_t  Bmnt = (mant_mask & bt);
     // Approximate Mantissa calculation
-    uint32_t Mbm_mantmult = uint32_t(tex1Dfetch<uint32_t>(lut, (int)((Amnt)>>9) | ((Bmnt)>>16)));
+    uint32_t Mbm_mantmult = uint32_t(tex1Dfetch<uint32_t>(lut, (int)((Amnt)>>a_shift) | ((Bmnt)>>b_shift)));
     uint32_t is_normalized = (Mbm_mantmult&SIGN_MASK)>>31;
     Mbm_mantmult = Mbm_mantmult&CLEAR_NORMALIZED;
 

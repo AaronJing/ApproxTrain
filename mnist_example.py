@@ -14,6 +14,7 @@ def normalize_img(image, label):
   """Normalizes images: `uint8` -> `float32`."""
   return tf.cast(image, tf.float32) / 255., label
 
+lut_file = "lut/MBM_1.bin"
 ds_train = ds_train.map(
     normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 ds_train = ds_train.cache()
@@ -27,19 +28,19 @@ ds_test = ds_test.cache()
 ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
 model = tf.keras.models.Sequential([
  tf.keras.layers.Input(shape=(28, 28, 1)),
- AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
+ AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu', mant_mul_lut=lut_file),
  #tf.keras.layers.Conv2D()
  #tf.keras.layers.Conv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2),padding='same'),
-AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
+AMConv2D(filters=32, kernel_size=5, padding='same', activation='relu', mant_mul_lut=lut_file),
  #tf.keras.layers.Conv2D(filters=32, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'),
  tf.keras.layers.Flatten(),
  #tf.keras.layers.Dense(1024, activation='relu'),
- denseam(1024, activation='relu'),
+ denseam(1024, activation='relu', mant_mul_lut=lut_file),
  tf.keras.layers.Dropout(0.4),
  #tf.keras.layers.Dense(10, activation='softmax'),
- denseam(10, activation='softmax')
+ denseam(10, activation='softmax', mant_mul_lut=lut_file)
 ])
 model.compile(
     optimizer=tf.keras.optimizers.Adam(0.001),

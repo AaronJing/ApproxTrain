@@ -8,7 +8,6 @@
 #include <bitset>
 #include <string>
 #include <cmath>
-#include "mbm16_simulation.h"
 void floatToBinary(float f, std::string& str)
 {
 
@@ -27,8 +26,54 @@ void floatToBinary(float f, std::string& str)
     std::string temp(str.rbegin(), str.rend());
     str = temp;
 }
+#ifdef FMBM16_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
+    #include "FPmultMBM_fast16.inl"
+    #define MANTISSA_BITWIDTH 7
+    std::string lut_save = "MBM_7.bin";
+#elif FMBM14_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast14((a),(b));
+    #include "FPmultMBM_fast14.inl"
+    #define MANTISSA_BITWIDTH 5
+    std::string lut_save = "MBM_5.bin";
+#elif FMBM12_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast12((a),(b));
+    #include "FPmultMBM_fast12.inl"
+    #define MANTISSA_BITWIDTH 3
+    std::string lut_save = "MBM_3.bin";
+#elif FMBM10_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMBM_fast10((a),(b));
+    #include "FPmultMBM_fast10.inl"
+    #define MANTISSA_BITWIDTH 1
+    std::string lut_save = "MBM_1.bin";
+#elif MITCHEL16_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast16((a),(b));
+    #include "Mitchell_16.inl"
+    #define MANTISSA_BITWIDTH 7
+    std::string lut_save = "MIT_7.bin";
+#elif MITCHEL14_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast14((a),(b));
+    #include "Mitchell_14.inl"
+    #define MANTISSA_BITWIDTH 5
+    std::string lut_save = "MIT_5.bin";
+#elif MITCHEL12_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast12((a),(b));
+    #include "Mitchell_12.inl"
+    #define MANTISSA_BITWIDTH 3
+    std::string lut_save = "MIT_3.bin";
+#elif MITCHEL10_MULTIPLIER
+    #define MULTIPLY(a,b) FPmultMitch_fast10((a),(b));
+    #include "Mitchell_10.inl"
+    #define MANTISSA_BITWIDTH 1
+    std::string lut_save = "MIT_1.bin";
+#elif BFLOAT
+    #define MULTIPLY(a,b) bfloat16mul((a),(b));
+    #include "bfloat.inl"
+    #define MANTISSA_BITWIDTH 7
+    std::string lut_save = "ACC_7.bin";
+#endif
+
 #define EMPTYFP32 0x00000000
-#define MANTISSA_BITWIDTH 7
 //#define SIGN_MASK_ 0x80000000
 #define EXPONENT127 0x3f800000
 #define EXPONENT_MASK_ 0x7f800000
@@ -49,15 +94,15 @@ int main(){
     // 0b0011 1111 1000 0000 0000 0000 0000 0000 Biased exponent = 127
     at = at | EXPONENT127;
     bt = bt | EXPONENT127;
-    std::cout << MANTISSA_MASK_ << std::endl;
-    FILE *f = fopen("mbmmantmul16.bin", "wb");
+    char *lut_save_name = &lut_save[0];
+    FILE *f = fopen(lut_save_name, "wb");
     for(uint32_t i = 0; i < uint32_t(pow(2,MANTISSA_BITWIDTH)); ++i){
         for(uint32_t j = 0; j < uint32_t(pow(2,MANTISSA_BITWIDTH)); ++j){
             uint32_t newat = at | (i<<(23-MANTISSA_BITWIDTH));
             uint32_t newbt = bt | (j<<(23-MANTISSA_BITWIDTH));
             float newa = *(float*)&newat;
             float newb = *(float*)&newbt;
-            float c = FPmultMBM_fast16(newa, newb);
+            float c = MULTIPLY(newa, newb);
             uint32_t ct = *(uint32_t *)&c;
             uint32_t MANTISSA = ct & MANTISSA_MASK_;
             uint32_t c_exp = ct & EXPONENT_MASK_;
@@ -67,7 +112,6 @@ int main(){
                 carry = 0x80000000;
             MANTISSA = carry | MANTISSA;
             fwrite(&MANTISSA, sizeof(uint32_t), 1, f);
-            std::cout << MANTISSA << " " << newat << " " << newbt << " " << carry<< std::endl;
             
         }
     }

@@ -6,42 +6,11 @@
 #include "tensorflow/core/framework/types.h"
 using namespace tensorflow;
 
-#ifdef FMBM32_MULTIPLIER
-   #define MULTIPLY(a,b) FPmultMBM_fast32((a),(b));
-   #include "FPmultMBM_fast32.inl"
-#elif FMBM16_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMBM_fast16((a),(b), mant_lut, exp_lut, lut_mem);
-//#define MULTIPLY(a,b) FPmultMBM_fast16((a),(b));
-    #include "FPmultMBM_fast16.inl"
-#elif FMBM14_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMBM_fast14((a),(b));
-    #include "FPmultMBM_fast14.inl"
-#elif FMBM12_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMBM_fast12((a),(b));
-    #include "FPmultMBM_fast12.inl"
-#elif FMBM10_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMBM_fast10((a),(b));
-    #include "FPmultMBM_fast10.inl"
-#elif MITCHEL32_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMitch_fast32((a),(b));
-    #include "Mitchell_32.inl"
-#elif MITCHEL16_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMitch_fast16((a),(b));
-    #include "Mitchell_16.inl"
-#elif MITCHEL14_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMitch_fast14((a),(b));
-    #include "Mitchell_14.inl"
-#elif MITCHEL12_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMitch_fast12((a),(b));
-    #include "Mitchell_12.inl"
-#elif MITCHEL10_MULTIPLIER
-    #define MULTIPLY(a,b) FPmultMitch_fast10((a),(b));
-    #include "Mitchell_10.inl"
-#elif BFLOAT
-    #define MULTIPLY(a,b) bfloat16mul((a),(b));
-    #include "bfloat.inl"
+#ifdef AMSIMULATOR
+   #define MULTIPLY(a,b) AMsimulator((a), (b), mant_lut, mant_mask, a_shift, b_shift);
+   #include "AMsimulator.inl"
 #else
-    #define MULTIPLY(a,b) ((a)*(b));
+   #define MULTIPLY(a,b) ((a)*(b));
 #endif
 
 #define TILE_DIM 16
@@ -49,7 +18,7 @@ template <typename T>
 __global__ void gemm(size_t m, size_t n, size_t k,
     const T *a, size_t lda, const T *b, size_t ldb,
    T *c, size_t ldc, cudaTextureObject_t mant_lut,
-   cudaTextureObject_t exp_lut, uint32_t* lut_mem)
+   int mant_mask, int a_shift, int b_shift)
 {
     T value(0);
 
@@ -92,8 +61,8 @@ __global__ void gemm(size_t m, size_t n, size_t k,
 template __global__ void gemm<float>(size_t m, size_t n, size_t k,
     const float *a, size_t lda, const float *b, size_t ldb,
    float *c, size_t ldc, cudaTextureObject_t mant_lut,
-   cudaTextureObject_t exp_lut, uint32_t* lut_mem);
+   int mant_mask, int a_shift, int b_shift);
 template __global__ void gemm<int32>(size_t m, size_t n, size_t k,
     const int32 *a, size_t lda, const int32 *b, size_t ldb,
    int32 *c, size_t ldc, cudaTextureObject_t mant_lut,
-   cudaTextureObject_t exp_lut, uint32_t* lut_mem);
+   int mant_mask, int a_shift, int b_shift);

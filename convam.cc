@@ -431,6 +431,7 @@ REGISTER_OP("Convam")
     .Attr("T: {float, int32}")
     .Attr("strides: list(int)")
     .Attr("dilations: list(int) = [1, 1, 1, 1]")
+    .Attr("mant_mul_lut: string")
     .Attr(GetPaddingAttrString())
     .Attr(GetConvnetDataFormatAttrString())
     .SetShapeFn(::tensorflow::shape_inference::Conv2DShape);
@@ -694,6 +695,7 @@ REGISTER_OP("ConvamFilterGrad")
   .Attr("T: {float, int32}")
   .Attr("strides: list(int)")
   .Attr("dilations: list(int) = [1, 1, 1, 1]")
+  .Attr("mant_mul_lut: string")
   .Attr(GetPaddingAttrString())
   .Attr(GetConvnetDataFormatAttrString())
   .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
@@ -963,6 +965,7 @@ REGISTER_OP("ConvamInputGrad")
     .Attr(GetPaddingAttrString())
     .Attr(GetConvnetDataFormatAttrString())
     .Attr("dilations: list(int) = [1, 1, 1, 1]")
+    .Attr("mant_mul_lut: string")
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
       ::tensorflow::shape_inference::ShapeHandle s;
       TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(0, &s));

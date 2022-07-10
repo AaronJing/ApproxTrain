@@ -9,14 +9,6 @@ import tempfile
 import numpy as np
 from python.keras.layers.am_convolutional import AMConv2D
 from python.keras.layers.amdenselayer import denseam
-"""
-prunning program
-1. read final sparsity list from txt file DONE
-2. prune and retrain from final sparsity lists (loop) DONE
-3. compress weights and compare.
-4. download weights and see how many weights are cut? (necessary?)
-5. gzip the weights
-"""
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--mul", type=str, help="multiplier", default="MBM16")

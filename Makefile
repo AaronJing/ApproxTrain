@@ -28,11 +28,6 @@ ifeq  ($(MULTIPLIER),)
 else
 	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
 endif
-ifeq  ($(OPT),)
-    OPT_FLAG = -D OPTIMIZATION=0
-else 
-	OPT_FLAG = -D OPTIMIZATION=$(OPT)
-endif
 
 .PHONY: clean test
 
@@ -57,16 +52,16 @@ denseam.o: denseam.cc denseam.h
 	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
 
 # header deps
-mul_inc_deps = cuda/FPmultMBM_fast10.inl  cuda/FPmultMBM_fast14.inl  cuda/FPmultMBM_fast32.inl  cuda/Mitchell_12.inl  cuda/Mitchell_16.inl cuda/FPmultMBM_fast12.inl  cuda/FPmultMBM_fast16.inl  cuda/Mitchell_10.inl       cuda/Mitchell_14.inl  cuda/Mitchell_32.inl
+mul_inc_deps = cuda/AMsimulator.inl 
 
 # cuda stuff
 denseam_kernel.cu.o : cuda/denseam_kernel.cu cuda/error.cuh $(mul_inc_deps) 
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $(OPT_FLAG) -c $< -o $@
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG)  -c $< -o $@
 cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cuda/gemm.cuh cuda/reverseNswapdim23.cuh 
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) --expt-relaxed-constexpr -c $< -o $@
 
 gemm.cu.o: cuda/gemm.cu $(mul_inc_deps)
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $(OPT_FLAG) -c $< -o $@
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) -c $< -o $@
 
 reverseNswapdim23.cu.o: cuda/reverseNswapdim23.cu
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@

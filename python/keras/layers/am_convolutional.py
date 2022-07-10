@@ -134,6 +134,7 @@ class AMConv(Layer):
                trainable=True,
                name=None,
                conv_op=None,
+               mant_mul_lut='', 
                **kwargs):
     super(AMConv, self).__init__(
         trainable=trainable,
@@ -173,6 +174,8 @@ class AMConv(Layer):
     self._channels_first = self.data_format == 'channels_first'
     self._tf_data_format = conv_utils.convert_data_format(
         self.data_format, self.rank + 2)
+    self.mant_mul_lut = mant_mul_lut
+    #print(self.mant_mul_lut," lvl 1")
 
   def _validate_init(self):
     if self.filters is not None and self.filters % self.groups != 0:
@@ -249,6 +252,7 @@ class AMConv(Layer):
         padding=tf_padding,
         dilations=tf_dilations,
         data_format=self._tf_data_format,
+        mant_mul_lut=self.mant_mul_lut,
         name=tf_op_name)
     self.built = True
 
@@ -528,6 +532,7 @@ class AMConv2D(AMConv):
                activity_regularizer=None,
                kernel_constraint=None,
                bias_constraint=None,
+               mant_mul_lut='', 
                **kwargs):
     super(AMConv2D, self).__init__(
         rank=2,
@@ -547,6 +552,7 @@ class AMConv2D(AMConv):
         activity_regularizer=regularizers.get(activity_regularizer),
         kernel_constraint=constraints.get(kernel_constraint),
         bias_constraint=constraints.get(bias_constraint),
+        mant_mul_lut=mant_mul_lut,
         **kwargs)
 
 
