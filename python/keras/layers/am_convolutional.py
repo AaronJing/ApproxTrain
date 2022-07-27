@@ -353,7 +353,9 @@ class AMConv(Layer):
         'kernel_constraint':
             constraints.serialize(self.kernel_constraint),
         'bias_constraint':
-            constraints.serialize(self.bias_constraint)
+            constraints.serialize(self.bias_constraint),
+        'mant_mul_lut':
+            self.mant_mul_lut
     }
     base_config = super(AMConv, self).get_config()
     return dict(list(base_config.items()) + list(config.items()))

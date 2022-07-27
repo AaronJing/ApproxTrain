@@ -28,6 +28,11 @@ ifeq  ($(MULTIPLIER),)
 else
 	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
 endif
+ifeq  ($(HARDCODE),)
+    HARDCODE_CPPFLAG =
+else
+	HARDCODE_CPPFLAG = -DHARDCODE
+endif
 
 .PHONY: clean test
 
@@ -56,12 +61,12 @@ mul_inc_deps = cuda/AMsimulator.inl
 
 # cuda stuff
 denseam_kernel.cu.o : cuda/denseam_kernel.cu cuda/error.cuh $(mul_inc_deps) 
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG)  -c $< -o $@
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $(HARDCODE_CPPFLAG) -c $< -o $@
 cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cuda/gemm.cuh cuda/reverseNswapdim23.cuh 
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) --expt-relaxed-constexpr -c $< -o $@
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(HARDCODE_CPPFLAG) --expt-relaxed-constexpr -c $< -o $@
 
 gemm.cu.o: cuda/gemm.cu $(mul_inc_deps)
-	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) -c $< -o $@
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $(HARDCODE_CPPFLAG) -c $< -o $@
 
 reverseNswapdim23.cu.o: cuda/reverseNswapdim23.cu
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@

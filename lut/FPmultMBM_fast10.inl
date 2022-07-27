@@ -6,6 +6,7 @@
 
 #define MANTISSA_TRUNC_MASK       4194304
 #define MANTISSA_TRUNC_SETBIT     4194304
+#define INPUT10_MASK 0xffc00000
 
 // MANTISSA_MASK: 2^23 - 1          :     {9{0}, 23{1}}
 // MANTISSA_MASK_INV: 511*2^23      :    {9{1}, 23{0}}
@@ -118,7 +119,7 @@
 	    uint32_t Om = Mbm_mantmult;
 
         uint32_t Oi = Os + Oe + Om;
-
+        Oi = INPUT10_MASK&Oi;
 	    Oft = *(float*)&Oi;
 	}
 	return Oft;

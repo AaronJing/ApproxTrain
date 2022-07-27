@@ -209,6 +209,7 @@ class denseam(Layer):
       else:
         #outputs = gen_math_ops.MatMul(a=inputs, b=self.kernel)
         outputs = amdense_module.denseam(inputs, self.kernel, self.mant_mul_lut)
+   #     outputs = amdense_module.denseam(inputs, self.kernel)
     # Broadcast kernel to inputs.
     else:
       outputs = standard_ops.tensordot(inputs, self.kernel, [[rank - 1], [0]])
@@ -249,10 +250,12 @@ class denseam(Layer):
         'activity_regularizer':
             regularizers.serialize(self.activity_regularizer),
         'kernel_constraint': constraints.serialize(self.kernel_constraint),
-        'bias_constraint': constraints.serialize(self.bias_constraint)
+        'bias_constraint': constraints.serialize(self.bias_constraint),
+        'mant_mul_lut': self.mant_mul_lut
     })
     return config
 
 @ops.RegisterGradient("Denseam")
 def _dense_grad_cc(op, grad):
-    return amdense_module.denseam_grad(grad, op.inputs[0], op.inputs[1], op.get_attr("mant_mul_lut")) 
+    return amdense_module.denseam_grad(grad, op.inputs[0], op.inputs[1], mant_mul_lut=op.get_attr("mant_mul_lut")) 
+    #return amdense_module.denseam_grad(grad, op.inputs[0], op.inputs[1], op.get_attr("mant_mul_lut")) 

@@ -9,6 +9,10 @@ MULTIPLIER=(
     "MITCHEL12_MULTIPLIER"
     "MITCHEL10_MULTIPLIER"
     "BFLOAT"
+    "FAKE14"
+    "FAKE13"
+    "FAKE12"
+    "FAKE10"
 )
 for i in "${MULTIPLIER[@]}"; do
     g++ -D$i lut_gen.cc

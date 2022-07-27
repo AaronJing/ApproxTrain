@@ -6,6 +6,7 @@
 
 #define MANTISSA_TRUNC_MASK       7340032
 #define MANTISSA_TRUNC_SETBIT     1048576
+#define INPUT12_MASK 0xfff00000
 
 // MANTISSA_MASK: 2^23 - 1          :     {9{0}, 23{1}}
 // MANTISSA_MASK_INV: 511*2^23      :    {9{1}, 23{0}}
@@ -120,7 +121,7 @@ float FPmultMBM_fast12(float Af, float Bf)
 	    uint32_t Om = Mbm_mantmult;
 
         uint32_t Oi = Os + Oe + Om;
-
+        Oi = Oi&INPUT12_MASK;
 	    Oft = *(float*)&Oi;
 	}
 	return Oft;

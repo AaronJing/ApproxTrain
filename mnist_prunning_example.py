@@ -1,7 +1,6 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
-#tf.random.set_seed(1234)
 tf.get_logger().setLevel("ERROR")
 import tensorflow_datasets as tfds
 import sys
@@ -11,9 +10,20 @@ from python.keras.layers.am_convolutional import AMConv2D
 from python.keras.layers.amdenselayer import denseam
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--mul", type=str, help="multiplier", default="MBM16")
+parser.add_argument("--mul", type=str, help="multiplier", default="lut/MBM_7.bin")
 parser.add_argument("--approx", type=bool, help="use approximate multiplier or not", default=False)
 args = parser.parse_args()
+APPROX = args.approx
+subdir = "" 
+if args.mul in "lut/MBM_7.bin":
+    subdir = "AFM16"
+if args.mul in "lut/ACC_7.bin" and not APPROX:
+    subdir = "Bfloat16"
+if not APPROX:
+    subdir = "FP32"
+if subdir == "":
+    exit(1)
+
 def get_gzipped_model_size(file):
   # Returns size of gzipped model, in bytes.
   import zipfile
@@ -23,9 +33,6 @@ def get_gzipped_model_size(file):
     f.write(file)
 
   return os.path.getsize(zipped_file)
-APPROX = args.approx
-conv2d = AMConv2D if APPROX else tf.keras.layers.Conv2D
-dense = denseam if APPROX else tf.keras.layers.Dense
 (ds_train, ds_test), ds_info = tfds.load(
     'mnist',
     split=['train', 'test'],
@@ -50,15 +57,39 @@ ds_test = ds_test.cache()
 ds_test = ds_test.prefetch(tf.data.experimental.AUTOTUNE)
 model = tf.keras.models.Sequential([
  tf.keras.layers.Input(shape=(28, 28, 1)),
- conv2d(filters=6, kernel_size=5, padding='same', activation='relu'),
+ AMConv2D(filters=6, kernel_size=5, padding='same', activation='relu', mant_mul_lut=args.mul) if APPROX or (args.mul in "lut/ACC_7.bin") else
+ tf.keras.layers.Conv2D(filters=6, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2),padding='same'),
- conv2d(filters=16, kernel_size=5, padding='same', activation='relu'),
+ AMConv2D(filters=16, kernel_size=5, padding='same', activation='relu', mant_mul_lut=args.mul) if  APPROX or (args.mul in "lut/ACC_7.bin") else
+ tf.keras.layers.Conv2D(filters=16, kernel_size=5, padding='same', activation='relu'),
  tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same'),
  tf.keras.layers.Flatten(),
- dense(120, activation='relu'),
- dense(84, activation='relu'),
- dense(10, activation='softmax')
+# denseam(120, activation='relu') if not APPROX else tf.keras.layers.Dense(120, activation='relu'),
+# denseam(84, activation='relu') if not APPROX else tf.keras.layers.Dense(84, activation='relu'),
+# denseam(10, activation='softmax') if not APPROX else tf.keras.layers.Dense(10, activation='softmax')
+denseam(120, activation='relu', mant_mul_lut=args.mul) if APPROX or (args.mul in "lut/ACC_7.bin") else tf.keras.layers.Dense(120, activation='relu'),
+denseam(84, activation='relu', mant_mul_lut=args.mul) if APPROX or (args.mul in "lut/ACC_7.bin") else tf.keras.layers.Dense(84, activation='relu'),
+denseam(10, activation='softmax', mant_mul_lut=args.mul) if APPROX or (args.mul in "lut/ACC_7.bin") else tf.keras.layers.Dense(10, activation='softmax')
 ])
+modeldir = "./checkpoint/" + subdir+'.h5'
+callbacks = [
+#   tf.keras.callbacks.EarlyStopping(
+#       # Stop training when `val_loss` is no longer improving
+#       monitor="val_sparse_categorical_accuracy",
+#       # "no longer improving" being defined as "no better than 1e-2 less"
+#       min_delta=1e-4,
+#       # "no longer improving" being further defined as "for at least 2 epochs"
+#       patience=2,
+#       verbose=1,
+#   ),
+    tf.keras.callbacks.ModelCheckpoint(
+            filepath=modeldir,
+            monitor="val_sparse_categorical_accuracy",
+            save_weights_only=True,
+            save_best_only=True,
+            mode='max'
+        )
+]
 model.compile(
     optimizer=tf.keras.optimizers.Adam(0.001),
     loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -68,10 +99,11 @@ model.fit(
     ds_train,
     epochs=20,
     validation_data=ds_test,
+ #   callbacks=callbacks
 )
+#model.load_weights(modeldir)
 _, baseline_model_accuracy = model.evaluate(ds_test, verbose=0)
 print('Baseline test accuracy:', baseline_model_accuracy)
-modeldir = "./checkpoint/" + args.mul+'.h5'
 tf.keras.models.save_model(model, modeldir, include_optimizer=False)
 print('Saved baseline model to:', modeldir)
 
@@ -110,10 +142,11 @@ for fs in f_sparsity_list:
 
     model_for_pruning.summary()
 
-    dirname = args.mul
+    dirname = subdir
     logdir = "./logs/" + dirname + str(fs)
 
 
+#    modeldir = "./checkpoint/" + subdir+"-"+str(int(fs*100000))+'.h5'
     callbacks = [
     tfmot.sparsity.keras.UpdatePruningStep(),
     tfmot.sparsity.keras.PruningSummaries(log_dir=logdir),
@@ -122,8 +155,12 @@ for fs in f_sparsity_list:
     model_for_pruning.fit(ds_train,
                   batch_size=batch_size, epochs=epochs,
                   callbacks=callbacks)
-    for layer in model_for_pruning.layers:
+    for layer in model_for_pruning.layers: 
         print("Layer Name: ", layer.name)
+        if "pooling" in layer.name:
+            continue
+        if "flatten" in layer.name:
+            continue
         flat_weight = layer.get_weights()[0].flat
         flat_bias = layer.get_weights()[1].flat
         zeronum = 0

@@ -6,6 +6,7 @@
 
 #define MANTISSA_TRUNC_MASK       8323072
 #define MANTISSA_TRUNC_SETBIT     65536
+#define INPUT16_MASK 0xffff0000
 
 
 // MANTISSA_MASK: 2^23 - 1          :     {9{0}, 23{1}}

@@ -30,21 +30,18 @@ with open("sparsity_acc_all", "r") as f:
                 pruned.append(float(str.rstrip(element[-1])))
             dic[mul_data]=[spars, baseline, pruned]
     for i, elem in enumerate(dic):
-        if "TF" in elem or "MBM16" in elem or "BFLOAT" in elem: 
+        if "FP32" in elem or "Bfloat16" in elem or "AFM16" in elem: 
             print(elem)
 #            plt.plot(dic[elem][0],dic[elem][1],label=elem+" baseline")
-            c = "red"
-            x = 2
-            ls = "solid"
-            if "MBM16" in elem:
-                c = "green"
-                x = 0
-                ls = "dashdot"
-            if "BFLOAT" in elem:
-                c = "blue"
-                x = 0
-                ls = "dashdot"
-            plt.axhline(y=dic[elem][1][0],alpha=0.7**x,color=c,linestyle=ls,label=elem+"baseline")
-            plt.plot(dic[elem][0],dic[elem][2],marker=".",label=elem+" prunned")
+            c = "#ff7f00"
+            if "AFM16" in elem:
+                c = "#984ea3"
+            if "Bfloat16" in elem:
+                c = "#377eb8"
+            if "FP32" in elem:
+                plt.axhline(y=dic[elem][1][0],color="#e41a1c",linestyle="dashdot",label=elem+" baseline")
+            plt.plot(dic[elem][0],dic[elem][2],color=c,marker=".",label=elem+" prunned")
             plt.legend()
-            plt.savefig("example.png")
+    plt.xlabel("sparsity", fontweight="bold")
+    plt.ylabel("test Accuracy", fontweight="bold")
+    plt.savefig("example.pdf")

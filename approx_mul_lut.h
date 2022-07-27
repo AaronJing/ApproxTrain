@@ -23,9 +23,9 @@ class approx_mul_lut_base {
             unsigned stop_deliminter = mant_lut_file_name.find_last_of(".");
             auto mant_width_str = mant_lut_file_name.substr(start_delimiter+1, stop_deliminter - start_delimiter - 1);
             mant_width = std::stoi(mant_width_str);
-            a_shift = 16 - mant_width;
+            a_shift = 23 - mant_width*2;
             b_shift = 23 - mant_width;
-            mant_mask = ((2 << mant_width) - 1) << (23 - mant_width);
+            mant_mask = ((1 << mant_width) - 1) << (23 - mant_width);
             // open mant mul file
             std::ifstream file(mant_lut_file_name, std::ios::in | std::ios::binary);
             if(file.fail()) {
