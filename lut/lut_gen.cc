@@ -71,22 +71,6 @@ void floatToBinary(float f, std::string& str)
     #include "bfloat.inl"
     #define MANTISSA_BITWIDTH 7
     std::string lut_save = "ACC_7.bin";
-#elif FAKE14
-    #define MULTIPLY(a,b) ((a)*(b));
-    #define MANTISSA_BITWIDTH 14
-    std::string lut_save = "FAKE_14.bin";
-#elif FAKE13
-    #define MULTIPLY(a,b) ((a)*(b));
-    #define MANTISSA_BITWIDTH 13
-    std::string lut_save = "FAKE_13.bin";
-#elif FAKE12
-    #define MULTIPLY(a,b) ((a)*(b));
-    #define MANTISSA_BITWIDTH 12
-    std::string lut_save = "FAKE_12.bin";
-#elif FAKE10
-    #define MULTIPLY(a,b) ((a)*(b));
-    #define MANTISSA_BITWIDTH 10
-    std::string lut_save = "FAKE_10.bin";
 #endif
 
 #define EMPTYFP32 0x00000000
@@ -110,6 +94,9 @@ int main(){
     // 0b0011 1111 1000 0000 0000 0000 0000 0000 Biased exponent = 127
     at = at | EXPONENT127;
     bt = bt | EXPONENT127;
+
+
+
     char *lut_save_name = &lut_save[0];
     FILE *f = fopen(lut_save_name, "wb");
     for(uint32_t i = 0; i < uint32_t(pow(2,MANTISSA_BITWIDTH)); ++i){
@@ -120,17 +107,17 @@ int main(){
             float newb = *(float*)&newbt;
             float c = MULTIPLY(newa, newb);
             uint32_t ct = *(uint32_t *)&c;
-            uint32_t MANTISSA = ct & MANTISSA_MASK_;
+            uint8_t MANTISSA = (ct & MANTISSA_MASK_) >> (23-MANTISSA_BITWIDTH);
             uint32_t c_exp = ct & EXPONENT_MASK_;
             uint32_t un_normalized_exp = ((EXPONENT127>>23) + (EXPONENT127>>23) - 127)<<23;
-            uint32_t carry = 0;
+            uint8_t carry = 0;
             if(un_normalized_exp < c_exp)
-                carry = 0x80000000;
-            MANTISSA = carry | MANTISSA;
-            fwrite(&MANTISSA, sizeof(uint32_t), 1, f);
-            
+                carry = 0x80;
+            uint8_t result = carry | MANTISSA;
+            fwrite(&result, sizeof(uint8_t), 1, f);
         }
     }
+
     fclose(f);
     return 0;
 }

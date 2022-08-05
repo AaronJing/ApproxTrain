@@ -16,21 +16,17 @@ class approx_mul_lut<Eigen::GpuDevice> : public approx_mul_lut_base {
         auto get_mant_mul_lut_text_() -> cudaTextureObject_t& {
             return mant_mul_lut_text_;
         }
-        auto get_mant_mul_lut_() -> uint32_t* {
+        auto get_mant_mul_lut_() -> uint8_t* {
             return mant_mul_lut_cuda_;
         }
 
 };
 approx_mul_lut<Eigen::GpuDevice>::approx_mul_lut(OpKernelConstruction * context):
             approx_mul_lut_base(context){
-//   size_t free_mem;
-//   size_t total_mem;
-//   gpuErrchk(cudaMemGetInfo(&free_mem, &total_mem));
-//   std::cout << "Free mem: " <<free_mem << ", total_mem: " << total_mem << ", uasge: " << (free_mem/total_mem) << std::endl;
     gpuErrchk(cudaMalloc(&mant_mul_lut_cuda_, 
-            mant_mul_lut_.size() * sizeof(uint32_t)));
+            mant_mul_lut_.size() * sizeof(uint8_t)));
     gpuErrchk(cudaMemcpy(mant_mul_lut_cuda_, mant_mul_lut_.data(),
-            mant_mul_lut_.size()*sizeof(uint32_t), 
+            mant_mul_lut_.size()*sizeof(uint8_t), 
             cudaMemcpyHostToDevice));
     cudaResourceDesc mant_mul_lut_res_desc;
     memset(&mant_mul_lut_res_desc, 0, sizeof(cudaResourceDesc));
@@ -38,9 +34,9 @@ approx_mul_lut<Eigen::GpuDevice>::approx_mul_lut(OpKernelConstruction * context)
     mant_mul_lut_res_desc.res.linear.devPtr = mant_mul_lut_cuda_;
     mant_mul_lut_res_desc.res.linear.desc.f = 
         cudaChannelFormatKindUnsigned;
-    mant_mul_lut_res_desc.res.linear.desc.x = 32;
+    mant_mul_lut_res_desc.res.linear.desc.x = 8;
     mant_mul_lut_res_desc.res.linear.sizeInBytes = 
-        mant_mul_lut_.size() * sizeof(uint32_t);
+        mant_mul_lut_.size() * sizeof(uint8_t);
     
     cudaTextureDesc mant_mul_text_desc;
     memset(&mant_mul_text_desc, 0, sizeof(cudaTextureDesc));

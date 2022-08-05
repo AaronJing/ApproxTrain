@@ -76,4 +76,5 @@ sparsity_acc_all
 *.png
 /logs
 /checkpoint
+lut/*.bin
 *.bin

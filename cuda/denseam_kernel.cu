@@ -8,7 +8,7 @@
 using namespace tensorflow;
 using GpuDevice = Eigen::GpuDevice;
 #ifdef AMSIMULATOR
-   #define MULTIPLY(a,b) AMsimulator((a), (b), lut, mant_mask, a_shift, b_shift);
+   #define MULTIPLY(a,b) AMsimulator((a), (b), lut, mant_mask, a_shift, b_shift, mant_bitwidth);
    #include "AMsimulator.inl"
 #else
    #define MULTIPLY(a,b) ((a)*(b));
@@ -25,8 +25,8 @@ __global__ void DenseamKernel(
     T* output, 
     cudaTextureObject_t lut,
     const uint32_t mant_mask,
-    const int a_shift,
-    const int b_shift
+    const uint8_t a_shift,
+    const uint8_t b_shift, const uint8_t mant_bitwidth
     ) 
 { 
     unsigned int ix = blockIdx.x * blockDim.x + threadIdx.x; 
@@ -51,8 +51,8 @@ __global__ void DenseamWeightsKernel(
     T* grad_weights,
     cudaTextureObject_t lut,
     const uint32_t mant_mask,
-    const int a_shift,
-    const int b_shift
+    const uint8_t a_shift,
+    const uint8_t b_shift, const uint8_t mant_bitwidth
     ) 
 { 
     unsigned int ix = blockIdx.x * blockDim.x + threadIdx.x; 
@@ -77,8 +77,8 @@ __global__ void DenseamInputKernel(
     T* grad_inputs, 
     cudaTextureObject_t lut,
     const uint32_t mant_mask,
-    const int a_shift,
-    const int b_shift
+    const uint8_t a_shift,
+    const uint8_t b_shift, const uint8_t mant_bitwidth
     ) 
 { 
     unsigned int ix = blockIdx.x * blockDim.x + threadIdx.x; 
@@ -101,11 +101,12 @@ void DenseamFunctor<GpuDevice, T>::operator()(
         approx_mul_lut<GpuDevice>& mul_lut )
 { 
         const uint32_t mant_mask = mul_lut.get_mant_mask_();
-        const int a_shift = mul_lut.get_a_shift_();
-        const int b_shift = mul_lut.get_b_shift_();
+        const uint8_t a_shift = mul_lut.get_a_shift_();
+        const uint8_t b_shift = mul_lut.get_b_shift_();
+        const uint8_t mant_bitwidth = mul_lut.get_mant_width_();
         unsigned blocksize = 1024;
         unsigned gridsize = (batch*units+blocksize -1)/blocksize;
-        DenseamKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(inputs, weights, batch, units, input_width, output, mul_lut.get_mant_mul_lut_text_(), mant_mask, a_shift, b_shift);
+        DenseamKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(inputs, weights, batch, units, input_width, output, mul_lut.get_mant_mul_lut_text_(), mant_mask, a_shift, b_shift, mant_bitwidth);
         gpuErrchk( cudaPeekAtLastError() );
         gpuErrchk( cudaDeviceSynchronize() );
 }
@@ -117,11 +118,12 @@ void DenseamWeightGradFunctor<GpuDevice, T>::operator()
             approx_mul_lut<GpuDevice>& mul_lut ) 
             {
     const uint32_t mant_mask = mul_lut.get_mant_mask_();
-    const int a_shift = mul_lut.get_a_shift_();
-    const int b_shift = mul_lut.get_b_shift_();
+    const uint8_t a_shift = mul_lut.get_a_shift_();
+    const uint8_t b_shift = mul_lut.get_b_shift_();
+    const uint8_t mant_bitwidth = mul_lut.get_mant_width_();
     unsigned blocksize = 1024;
     unsigned gridsize = (units*input_width+blocksize -1)/blocksize;
-    DenseamWeightsKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, input, input_width, batch, units, output, mul_lut.get_mant_mul_lut_text_(), mant_mask, a_shift, b_shift);
+    DenseamWeightsKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, input, input_width, batch, units, output, mul_lut.get_mant_mul_lut_text_(), mant_mask, a_shift, b_shift, mant_bitwidth);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }
@@ -132,11 +134,12 @@ void DenseamInputGradFunctor<GpuDevice, T>::operator()
             approx_mul_lut<GpuDevice>& mul_lut
             ){
     const uint32_t mant_mask = mul_lut.get_mant_mask_();
-    const int a_shift = mul_lut.get_a_shift_();
-    const int b_shift = mul_lut.get_b_shift_();
+    const uint8_t a_shift = mul_lut.get_a_shift_();
+    const uint8_t b_shift = mul_lut.get_b_shift_();
+    const uint8_t mant_bitwidth = mul_lut.get_mant_width_();
     unsigned blocksize = 1024;
     unsigned gridsize = (batch*input_width+blocksize -1)/blocksize;
-    DenseamInputKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, weight, input_width, batch, units, output, mul_lut.get_mant_mul_lut_text_(), mant_mask, a_shift, b_shift);
+    DenseamInputKernel<T><<<gridsize, blocksize, 0, d.stream()>>>(grads, weight, input_width, batch, units, output, mul_lut.get_mant_mul_lut_text_(), mant_mask, a_shift, b_shift, mant_bitwidth);
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }

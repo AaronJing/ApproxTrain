@@ -7,7 +7,7 @@
 using namespace tensorflow;
 
 #ifdef AMSIMULATOR
-   #define MULTIPLY(a,b) AMsimulator((a), (b), mant_lut, mant_mask, a_shift, b_shift);
+   #define MULTIPLY(a,b) AMsimulator((a), (b), mant_lut, mant_mask, a_shift, b_shift, mant_bitwidth);
    #include "AMsimulator.inl"
 #else
    #define MULTIPLY(a,b) ((a)*(b));
@@ -17,7 +17,7 @@ template <typename T>
 __global__ void gemm(size_t m, size_t n, size_t k,
     const T *a, size_t lda, const T *b, size_t ldb,
    T *c, size_t ldc, cudaTextureObject_t mant_lut,
-   int mant_mask, int a_shift, int b_shift)
+   uint32_t mant_mask, uint8_t a_shift, uint8_t b_shift, uint8_t mant_bitwidth)
 {
     T value(0);
 
@@ -60,8 +60,8 @@ __global__ void gemm(size_t m, size_t n, size_t k,
 template __global__ void gemm<float>(size_t m, size_t n, size_t k,
     const float *a, size_t lda, const float *b, size_t ldb,
    float *c, size_t ldc, cudaTextureObject_t mant_lut,
-   int mant_mask, int a_shift, int b_shift);
+   uint32_t mant_mask, uint8_t a_shift, uint8_t b_shift, uint8_t mant_bitwidth);
 template __global__ void gemm<int32>(size_t m, size_t n, size_t k,
     const int32 *a, size_t lda, const int32 *b, size_t ldb,
    int32 *c, size_t ldc, cudaTextureObject_t mant_lut,
-   int mant_mask, int a_shift, int b_shift);
+   uint32_t mant_mask, uint8_t a_shift, uint8_t b_shift, uint8_t mant_bitwidth);
