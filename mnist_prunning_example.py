@@ -1,13 +1,14 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import sys
 import tensorflow as tf
 tf.get_logger().setLevel("ERROR")
 import tensorflow_datasets as tfds
 import sys
 import tempfile
 import numpy as np
-from python.keras.layers.am_convolutional import AMConv2D
-from python.keras.layers.amdenselayer import denseam
+from .python.keras.layers.am_convolutional import AMConv2D
+from .python.keras.layers.amdenselayer import denseam
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--mul", type=str, help="multiplier", default="lut/MBM_7.bin")

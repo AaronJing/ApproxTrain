@@ -32,6 +32,8 @@ echo $MUL "Done"
 
 grep -A 2 "sparsity" *_RAW > sparsity_acc_all
 python3 prunning_plotting.py
+rm *RAW
+rm sparsity_acc_all
 end_time="$(date -u +%s)"
 elapsed="$(($end_time-$start_time))"
 echo "Total of $elapsed seconds elapsed for process"

@@ -7,8 +7,8 @@
 #define MANTISSA_TRUNC_MASK       8323072
 #define MANTISSA_TRUNC_SETBIT     65536
 #define INPUT16_MASK 0xffff0000
-#define CARRY_MASK 0x00800000
-#define CLEAR_CARRY_MASK 0xff7fffff
+#define CARRY_MASK 0x80
+#define CLEAR_CARRY_MASK 0x7f
 
 __device__ __inline__ float AMsimulator(float Af, float Bf, cudaTextureObject_t lut, uint32_t mant_mask, uint8_t a_shift, uint8_t b_shift, uint8_t mant_bitwidth)
 {
