@@ -1,6 +1,6 @@
-# AMDNN
+# ApproxTrain
 
-<what this is>
+ApproxTrain is an open-source framework that allows sufficiently fast evaluation of DNNs training and inference using simulated approximate multipliers. ApproxTrain is as user-friendly as TensorFlow  (TF) and requires only a high-level description of a DNN architecture along with C/C++ functional models of the approximate multiplier. We improve the speed of the simulation at the multiplier level using a novel LUT-based approximate floating-point (FP) multiplier on GPU (AM Simulator). Additionally, a novel flow is presented to seamlessly convert C/C++ functional models of approximate FP multipliers into AM Simulator. ApproxTrain leverages CUDA and efficiently integrates AM Siumlator into TensorFlow library, to overcome the absence of native hardware approximate multiplier in commercial GPUs.
 
 ## Installation of Dependencies   
 
@@ -55,9 +55,9 @@ cuDNN is required for other tensorflow official layers, e.g., pooling.
 Download CuDNN from the [NVIDIA website](https://developer.nvidia.com/cudnn). Note that you will have to register for this. After downloading the tarball:
 
 ```
-// decompress cuDNN
+# decompress cuDNN
 tar -xvf cudnn-10.1-linux-x64-v7.6.5.32.tar.xz
-// copy to CUDA tool kit directory
+# copy to CUDA tool kit directory
 sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include 
 sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64 
 sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
@@ -82,39 +82,46 @@ pip3 install --user tensorflow-datasets
 git clone https://github.com/AaronJing/AMDNN
 cd AMDNN
 ```
+### Compile the framework with AM Simulator
+
+Warnings come from Tensorflow library could be safely ignored.
     
+When building is sucessful, `convam_gpu.so` and 'denseam_gpu.so' file are created.
+
+```
+make clean && make convam MULTIPLIER=AMSIMULATOR && make denseam_gpu.so MULTIPLIER=AMSIMULATOR
+```
+
+If you do not specify AMSIMULATOR, framework will be built with native hardware multiplication FP32 (* operator).
+
 ### Using in-built approximate multipliers
     
     
-We provides two approximate multipliers, minimally biased multiplier (MBM) and Mitchell logarithm-based approximate multiplier with different bit-widths as shown in the table below.
+We provides two approximate multipliers, minimally biased multiplier (MBM) and Mitchell logarithm-based (MIT) approximate multiplier with different bit-widths as shown in the table below. (s, e, m) represents sign, exponent and mantissa. For lookup table-based (lut) AM Simulator, we support mantissa bit-width from 1 (16 Bytes) to 11 (16.8 Mb). For multipliers with mantissa bit-width greater or equal to 12, direct C simulation should be used and expect performance degradation. Note that, the number after underscore in column Generate LUT File Name is the mantissa bit-width, which is needed for ApproxTrain to initialize lookup table.
     
-| Name 						 | Multiplier | Bit-width  |
-|----------------------------|------------|------------|
-| FMBM32_MULTIPLIER          | MBM        | 32		   |	
-| FMBM16_MULTIPLIER          | MBM        | 16         |
-| FMBM14_MULTIPLIER          | MBM        | 14         |
-| FMBM12_MULTIPLIER          | MBM        | 12         |
-| FMBM10_MULTIPLIER          | MBM        | 10         |
-| MITCHEL32_MULTIPLIER       | Mitchell   | 32         |
-| MITCHEL16_MULTIPLIER       | Mitchell   | 16         |
-| MITCHEL14_MULTIPLIER       | Mitchell   | 14         |
-| MITCHEL12_MULTIPLIER       | Mitchell   | 12         |
-| MITCHEL10_MULTIPLIER       | Mitchell   | 10         |
-    
-Now build our library using *make* command followed by the name of multiplier. For example, to build with  MBM 32 bit multiplier:
+| Name 						 | Multiplier | Bit-width  |(s, e, m)   |LUT AM Simulator   |Generated LUT File Name   |
+|----------------------------|------------|------------|------------|------------|------------|
+| FMBM32_MULTIPLIER          | MBM        | 32         |(1, 8, 23)  |❌|❌|
+| FMBM16_MULTIPLIER          | MBM        | 16         |(1, 8, 7)   |✔|MBM_7.bin|
+| FMBM14_MULTIPLIER          | MBM        | 14         |(1, 8, 5)   |✔|MBM_5.bin|
+| FMBM12_MULTIPLIER          | MBM        | 12         |(1, 8, 3)   |✔|MBM_3.bin|
+| FMBM10_MULTIPLIER          | MBM        | 10         |(1, 8, 1)   |✔|MBM_1.bin|
+| MITCHEL23_MULTIPLIER       | MIT  | 32         |(1, 8, 23)  |❌|❌|
+| MITCHEL16_MULTIPLIER       | MIT   | 16         |(1, 8, 7)   |✔|MIT_7.bin|
+| MITCHEL14_MULTIPLIER       | MIT   | 14         |(1, 8, 5)   |✔|MIT_5.bin|
+| MITCHEL12_MULTIPLIER       | MIT   | 12         |(1, 8, 3)   |✔|MIT_3.bin|
+| MITCHEL10_MULTIPLIER       | MIT   | 10         |(1, 8, 1)   |✔|MIT_1.bin|
+
+Now generate binary LUT files for AMSimulator
 
 ```
-make clean && make MULTIPLIER=FMBM32_MULTIPLIER
+cd lut
+./lut_gen.sh
 ```
-    
-If you do not specify a multiplier, i.e., if you just call `make`, the library will be built with IEEE 754 single precision multiplication (* operator).
-    
-Warnings come from Tensorflow library could be safely ignored.
-    
-When building is sucessful, `Convam.so` file is created. Now, launch the example script as:
+Now, launch the example script with preferred approximate multiplier (e.g. FMBM16_MULTIPLIER) as:
     
 ```
-python3 mnist_example.py    
+python3 mnist_example.py --mul="lut/MBM_7.bin"
 ```    
 
 You would expect 98% accuracy or higher, if everything works properly.
