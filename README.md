@@ -136,11 +136,6 @@ python3 -c 'import tensorflow as tf; print(tf.test.gpu_device_name())'
 
 If you are interested in adding your own multiplier or your own dataset, please visit the [developers guide](developer.md).
     
-
-## Docker Image
-
-TODO
-
 ## Troubleshooting
 
 TODO
