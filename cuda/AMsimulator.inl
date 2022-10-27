@@ -19,7 +19,7 @@ __device__ __inline__ float AMsimulator(float Af, float Bf, cudaTextureObject_t 
 	uint32_t  Bmnt = (mant_mask & bt);
     // Approximate Mantissa calculation
     uint32_t Mbm_mantmult = tex1Dfetch<uint8_t>(lut, (Amnt>>a_shift)|(Bmnt>>b_shift));
-    uint32_t is_normalized = (Mbm_mantmult&CARRY_MASK)>>23;
+    uint32_t is_normalized = (Mbm_mantmult&CARRY_MASK)>>mant_bitwidth;
     Mbm_mantmult = (Mbm_mantmult&CLEAR_CARRY_MASK) << (23-mant_bitwidth);
 
 	uint32_t Oaccsgn = (at ^ bt) & SIGN_MASK;            // 2^31 :  {1, 31{0}}
