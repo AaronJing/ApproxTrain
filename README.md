@@ -4,7 +4,7 @@ ApproxTrain is an open-source framework that allows sufficiently fast evaluation
 
 ## Installation of Dependencies   
 
-AMDNN requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We recommend using Python 3.5-3.8 and g++ 5.4.0 or higher.
+ApproxTrain requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We recommend using Python 3.5-3.8 and g++ 5.4.0 or higher.
 We did the development and testing on an Ubuntu 18.04.6 environment with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9. A brief guide on installing those dependency versions on an Ubuntu system are given below. Alternatively, If you can follow the official  TensorFlow [build guide](https://www.tensorflow.org/install/source).
 
 
@@ -79,8 +79,8 @@ pip3 install --user tensorflow-datasets
 ### Clone the repository
 
 ```
-git clone https://github.com/AaronJing/AMDNN
-cd AMDNN
+git clone https://github.com/AaronJing/ApproxTrain
+cd ApproxTrain
 ```
 ### Compile the framework with AM Simulator
 
