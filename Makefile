@@ -13,6 +13,8 @@ CONV_BINARY = convam_gpu.so
 CONV_OBJ = convam.o
 DENSE_BINARY = denseam_gpu.so
 DENSE_OBJ = denseam.o
+MATMUL_BINARY = matmulam.so
+MATMUL_OBJ = matmulam.o
 
 CUDA_ROOT = /usr/local/cuda
 CUDA_LIB ?= $(CUDA_ROOT)/lib64
@@ -23,6 +25,9 @@ CUDA_LDFLAGS = -L$(CUDA_LIB) -lcudart
 CONV_OBJ += $(CONV_CUDA_OBJ)
 DENSE_CUDA_OBJ = denseam_kernel.cu.o approx_mul_lut.cu.o
 DENSE_OBJ += $(DENSE_CUDA_OBJ)
+MATMUL_CUDA_OBJ ?= 
+MATMUL_OBJ += $(MATMUL_CUDA_OBJ)
+
 ifeq  ($(MULTIPLIER),)
     MULTIPLIER_CPPFLAG =
 else
@@ -31,11 +36,17 @@ endif
 
 .PHONY: clean test
 
-all: $(CONV_BINARY) $(DENSE_BINARY)
+all: $(CONV_BINARY) $(DENSE_BINARY) $(MATMUL_BINARY)
 
 convam: $(CONV_BINARY)
 	
 denseam: $(DENSE_BINARY)
+
+matmulam: $(MATMUL_BINARY)
+
+
+$(MATMUL_BINARY): $(MATMUL_OBJ)
+	$(CXX) $(CFLAGS) -shared $(MATMUL_OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
 
 $(CONV_BINARY): $(CONV_OBJ)
 	$(CXX) $(CFLAGS) -shared $(CONV_OBJ) $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
@@ -45,6 +56,10 @@ $(DENSE_BINARY): $(DENSE_OBJ)
 
 test_bin: $(CONV_OBJ)
 	$(CXX)  $(CFLAGS) $(CPPFLAGS) $(CONV_OBJ) test/test.cpp $(LDFLAGS) $(CUDA_LDFLAGS) -o $@
+
+
+matmulam.o: matmulam.cc matmulam.h
+	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@
 
 convam.o: convam.cc convam.h
 	$(CXX) $(CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) $< -c -o $@

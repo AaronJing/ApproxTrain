@@ -32,4 +32,5 @@ __device__ __inline__ float AMsimulator(float Af, float Bf, cudaTextureObject_t 
     uint32_t Oi = Oaccsgn + (Oaccexp << 23) + Mbm_mantmult;
 	return *(float*)&Oi;
 
+
 }
