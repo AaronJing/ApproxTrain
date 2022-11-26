@@ -2,9 +2,13 @@ from tensorflow.python.framework import ops
 from tensorflow.python.eager import context
 from tensorflow.python.ops import gen_math_ops
 from tensorflow.python.framework import dtypes
+from tensorflow.python.util import dispatch
+from tensorflow.python.util.tf_export import tf_export
 import tensorflow
 gen_matmulam = tensorflow.load_op_library('./matmulam.so')
 _resource_variable_type = None
+@tf_export("linalg.matmulam", "matmulam")
+@dispatch.add_dispatch_support
 def matmulam(a,
            b,
            transpose_a=False,
@@ -70,7 +74,7 @@ def matmulam(a,
           # matmul currently doesn't handle mixed-precision inputs.
           use_sparse_matmul = True
         if use_sparse_matmul:
-            ret = gen_matmulam.matmulam(
+            ret = gen_matmulam.MatMulAM(
               a, b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
           # sparse_matmul always returns float32, even with
           # bfloat16 inputs. This prevents us from configuring bfloat16 training.
@@ -80,21 +84,22 @@ def matmulam(a,
             #ret = cast(ret, dtypes.bfloat16)
           #return ret
         else:
-          return gen_matmulam.matmulam(
-              a, b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
+          print(dir(gen_matmulam))
+          return gen_matmulam.MatMulAM(
+              a=a, b=b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
 def _MatMulGradAgainstFirstOnly(op, grad):
   """Gradient for MatMul, only for the first input."""
   t_a = op.get_attr("transpose_a")
   t_b = op.get_attr("transpose_b")
   b = math_ops.conj(op.inputs[1])
   if not t_a and not t_b:
-    grad_a = gen_matmulam.matmulam(grad, b, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(grad, b, transpose_b=True)
   elif not t_a and t_b:
-    grad_a = gen_matmulam.matmulam(grad, b)
+    grad_a = gen_matmulam.MatMulAM(grad, b)
   elif t_a and not t_b:
-    grad_a = gen_matmulam.matmulam(b, grad, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_b=True)
   elif t_a and t_b:
-    grad_a = gen_matmulam.matmulam(b, grad, transpose_a=True, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_a=True, transpose_b=True)
   return grad_a, None
 
 
@@ -104,13 +109,13 @@ def _MatMulGradAgainstSecondOnly(op, grad):
   t_b = op.get_attr("transpose_b")
   a = math_ops.conj(op.inputs[0])
   if not t_a and not t_b:
-    grad_b = gen_matmulam.matmulam(a, grad, transpose_a=True)
+    grad_b = gen_matmulam.MatMulAM(a, grad, transpose_a=True)
   elif not t_a and t_b:
-    grad_b = gen_matmulam.matmulam(grad, a, transpose_a=True)
+    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True)
   elif t_a and not t_b:
-    grad_b = gen_matmulam.matmulam(a, grad)
+    grad_b = gen_matmulam.MatMulAM(a, grad)
   elif t_a and t_b:
-    grad_b = gen_matmulam.matmulam(grad, a, transpose_a=True, transpose_b=True)
+    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True, transpose_b=True)
   return None, grad_b
 @ops.RegisterGradient("MatMulAM")
 def _MatMulGrad(op, grad):
@@ -131,15 +136,15 @@ def _MatMulGrad(op, grad):
   a = math_ops.conj(op.inputs[0])
   b = math_ops.conj(op.inputs[1])
   if not t_a and not t_b:
-    grad_a = gen_matmulam.matmulam(grad, b, transpose_b=True)
-    grad_b = gen_matmulam.matmulam(a, grad, transpose_a=True)
+    grad_a = gen_matmulam.MatMulAM(grad, b, transpose_b=True)
+    grad_b = gen_matmulam.MatMulAM(a, grad, transpose_a=True)
   elif not t_a and t_b:
-    grad_a = gen_matmulam.matmulam(grad, b)
-    grad_b = gen_matmulam.matmulam(grad, a, transpose_a=True)
+    grad_a = gen_matmulam.MatMulAM(grad, b)
+    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True)
   elif t_a and not t_b:
-    grad_a = gen_matmulam.matmulam(b, grad, transpose_b=True)
-    grad_b = gen_matmulam.matmulam(a, grad)
+    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_b=True)
+    grad_b = gen_matmulam.MatMulAM(a, grad)
   elif t_a and t_b:
-    grad_a = gen_matmulam.matmulam(b, grad, transpose_a=True, transpose_b=True)
-    grad_b = gen_matmulam.matmulam(grad, a, transpose_a=True, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_a=True, transpose_b=True)
+    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True, transpose_b=True)
   return grad_a, grad_b
