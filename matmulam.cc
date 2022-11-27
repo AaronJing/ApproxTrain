@@ -97,7 +97,7 @@ void gemm_cpu(
 }
 template <typename T>
 struct LaunchMatMul<CPUDevice, T> {
-  static void launch(
+  void launch(
       const CPUDevice &d, const T& a, const T& b,
       const int batch, const int row_a, const int col_a, const int row_b,
       const int col_b, T* out,
