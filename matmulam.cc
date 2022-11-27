@@ -35,6 +35,9 @@ limitations under the License.
 #include "tensorflow/core/platform/stream_executor.h"
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
+#include "approx_mul_lut.h"
+#include "matmulam.h"
+
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -48,19 +51,75 @@ REGISTER_OP("MatMulAM")
     .Output("product: T")
     .Attr("transpose_a: bool = false")
     .Attr("transpose_b: bool = false")
-    .Attr(
-        "T: {bfloat16, half, float, double, int32, int64, complex64, "
-        "complex128}")
+    .Attr("T: {float, int32}")
+    .Attr("mant_mul_lut: string")
     .SetShapeFn(shape_inference::MatMulShape);
 
 
+class approx_mul_lut<CPUDevice> : public approx_mul_lut_base {
+    public:
+        explicit approx_mul_lut(OpKernelConstruction *context) : approx_mul_lut_base(
+                context
+                ) {};
+};
 
+template<typename T>
+void gemm_cpu(
+        const CPUDevice &d, int m, int n, int k, const T *a, int lda,
+        const T *b, int ldb,
+        T *c, int ldc
+        )
+{
+    const size_t aIStride = size_t(lda);
+    const size_t aLStride = 1;
+    const size_t bJStride = 1;
+    const size_t bLStride = size_t(ldb);
+    const size_t cIStride = size_t(ldc);
+    const size_t cJStride = 1;
+
+    for(size_t j = 0; j < size_t(n); ++j)
+    {
+        for(size_t i = 0; i < size_t(m); ++i)
+        {
+            T total(0);
+            for(size_t l = 0; l < size_t(k); ++l)
+            {
+                const size_t aIndex = ((i * aIStride) + (l * aLStride));
+                const T aValue = a[aIndex];
+                const size_t bIndex = ((j * bJStride) + (l * bLStride));
+                const T bValue = b[bIndex];
+                total += (aValue * bValue);
+            }
+            const size_t cIndex = ((i * cIStride) + (j * cJStride));
+            c[cIndex] = total;
+        }
+    }
+}
 template <typename T>
-struct LaunchMatMul<GPUDevice, T> {
+struct LaunchMatMul<CPUDevice, T> {
   static void launch(
-      OpKernelContext* ctx, const Tensor& a, const Tensor& b,
-      const Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1>& dim_pair,
-      std::vector<int64>* algorithms, bool use_autotune, Tensor* out) {
+      const CPUDevice &d, const T& a, const T& b,
+      const int batch, const int row_a, const int col_a, const int row_b,
+      const int col_b, T* out,
+      approx_mul_lut<CPUDevice>& mul_lut
+      ) {
+      if (batch != 0) {
+        for (int i = 0; i < batch; i++){
+            // strided gemm?
+            const T& temp_a = a[i*row_a*col_a];
+            const T& temp_b = b[i*row_b*col_b];
+            T& temp_c = out[i*row_a*col_b];
+            gemm_cpu<T>(ctx->eigen_device<CPUDevice>(), m, n, k, temp_a, lda, temp_b, ldb, temp_c, ldc);
+        }
+      } else {
+        int m = row_a;
+        int n = col_b;
+        int k = col_a;
+        int lda = col_a;
+        int ldb = col_b;
+        int ldc = col_b;
+        gemm_cpu<T>(ctx->eigen_device<CPUDevice>(), m, n, k, a, lda, b, ldb, out, ldc);
+      }
 };
 
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
@@ -69,26 +128,37 @@ template <typename Device, typename T, bool USE_CUBLAS>
 class MatMulAMOp : public OpKernel {
  public:
   explicit MatMulAMOp(OpKernelConstruction* ctx)
-      : OpKernel(ctx), algorithms_set_already_(false) {
+      : OpKernel(ctx), mul_lut_(contest){
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_a", &transpose_a_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_b", &transpose_b_));
 
-    LaunchMatMul<Device, T, USE_CUBLAS>::GetBlasGemmAlgorithm(
-        ctx, &algorithms_, &algorithms_set_already_);
-    use_autotune_ = MatmulAutotuneEnable();
   }
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& a = ctx->input(0);
     const Tensor& b = ctx->input(1);
+    int batch = 0;
+    int row_a = 0;
+    int col_a = 0;
+    int row_b = 0;
+    int col_b = 0;
     if (a.dims() == 2) {
         OP_REQUIRES(ctx, b.dims() == 2, errors::InvalidArgument("Input b shold be 2 dimensional"));
         OP_REQUIRES(ctx, a.shape().dim_size(1) == b.shape().dim_size(0), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+        row_a = a.shape().dim_size(0);
+        col_a = a.shape().dim_size(1);
+        row_b = b.shape().dim_size(0);
+        col_b = b.shape().dim_size(1);
     } else if (a.dims() == 3) {
         OP_REQUIRES(ctx, b.dims() == 3, errors::InvalidArgument("Input b shold be 3 dimensional"));
         OP_REQUIRES(ctx, a.shape().dim_size(0) == b.shape().dim_size(0), errors::InvalidArgument("Does not meet batch of mat a is equal batch of matb"));
         OP_REQUIRES(ctx, a.shape().dim_size(2) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
         OP_REQUIRES(ctx, a.shape().dim_size(2) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+        batch = a.shape().dim_size(0);
+        row_a = a.shape().dim_size(1);
+        col_a = a.shape().dim_size(2);
+        row_b = b.shape().dim_size(1);
+        col_b = b.shape().dim_size(2);
     } else {
         OP_REQUIRES(
                 ctx, false,
@@ -115,15 +185,19 @@ class MatMulAMOp : public OpKernel {
       return;
     }
 
-    LaunchMatMul<Device, T, USE_CUBLAS>::launch(
-          ctx, a, b, dim_pair, &algorithms_, use_autotune_, out);
+  //static void launch(
+  //    OpKernelContext* ctx, const T& a, const T& b,
+  //    const int batch, const int row_a, const int col_a, const int row_b,
+  //    const int col_b, T* out) {
+    auto a_data = a.flat<T>().data();
+    auto b_data = b.flat<T>().data();
+    auto output = out->flat<T>().data();
+    LaunchMatMul<Device, T>::launch(
+          ctx->eigen_device<Device>(), a_data, b_data, batch, row_a, col_a, row_b, col_b, output, mul_mut_ );
 
  private:
-  std::vector<int64> algorithms_;
-  bool algorithms_set_already_;
-  bool use_autotune_;
-  bool transpose_a_;
-  bool transpose_b_;
+    approx_mul_lut<Device> mul_lut_;
+    TF_DISALLOW_COPY_AND_ASSIGN(MatMulAMOp);
 };
 
 #define REGISTER_GPU(T)                                            \
