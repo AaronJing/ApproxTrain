@@ -308,93 +308,93 @@ struct LaunchMatMul<GPUDevice, T, true /* USE_CUBLAS */> {
     ComputationType computation_type;
     bool compute_type_supported =
         GetCublasAutotuneComputationType(dtype, &computation_type);
-    if (use_autotune && compute_type_supported && !algorithms->empty()) {
-      ProfileResult best_result;
-      // TODO(yangzihao): Unify this code with conv autotuning.
-      if (!AutoTuneMatmul::GetInstance()->Find(matmul_parameters,
-                                               &algorithm_config)) {
-        ProfileResult profile_result;
-        for (auto profile_algorithm : (*algorithms)) {
-          // Cublas does
-          // C = A x B
-          // where A, B and C are assumed to be in column major.
-          // We want the output to be in row-major, so we can compute
-          // C' = B' x A' (' stands for transpose)
-          bool cublas_launch_status =
-              stream
-                  ->ThenBlasGemmWithAlgorithm(
-                      blas_transpose_b, blas_transpose_a, n, m, k, alpha, b_ptr,
-                      transpose_b ? k : n, a_ptr, transpose_a ? m : k, beta,
-                      &c_ptr, n, computation_type, profile_algorithm,
-                      &profile_result)
-                  .ok();
-          if (cublas_launch_status) {
-            if (profile_result.is_valid()) {
-              if (profile_result.elapsed_time_in_ms() <
-                  best_result.elapsed_time_in_ms()) {
-                best_result = profile_result;
-              }
-            }
-          }
-        }
-        // Try BlasGemmWithProfiling
-        bool cublas_launch_status =
-            stream
-                ->ThenBlasGemmWithProfiling(
-                    blas_transpose_b, blas_transpose_a, n, m, k, 1.0, b_ptr,
-                    transpose_b ? k : n, a_ptr, transpose_a ? m : k, 0.0,
-                    &c_ptr, n, &profile_result)
-                .ok();
-        if (cublas_launch_status) {
-          if (profile_result.is_valid()) {
-            if (profile_result.elapsed_time_in_ms() <
-                best_result.elapsed_time_in_ms()) {
-              best_result = profile_result;
-            }
-          }
-        }
-        // Try BlasGemvWithProfiling
-        if (ShouldUseGemv<T>(n)) {
-          LaunchBlasGemv<T>::Compute(ctx, stream, !transpose_a,
-                                     transpose_a ? m : k, transpose_a ? k : m,
-                                     a_ptr, b_ptr, &c_ptr, &profile_result);
-          if (profile_result.is_valid()) {
-            if (profile_result.elapsed_time_in_ms() <
-                best_result.elapsed_time_in_ms()) {
-              best_result = profile_result;
-            }
-          }
-        }
-      }
-      // We make sure that each matmul parameter set only gets one pass of
-      // autotune. If the best result is found, assign it to algorithm_type
-      // and insert it to autotune map. If all internal kernels of
-      // cublasGemmEx() returns invalid results, we add kNoAlgorithm to the
-      // autotune map.
-      if (best_result.is_valid()) {
-        algorithm_config.set_algorithm(best_result.algorithm());
-      }
-      AutoTuneMatmul::GetInstance()->Insert(matmul_parameters,
-                                            algorithm_config);
-      if (algorithm_config.algorithm() != kNoAlgorithm &&
-          algorithm_config.algorithm() != kDefaultBlasGemm &&
-          algorithm_config.algorithm() != kDefaultBlasGemv) {
-        bool cublas_launch_status =
-            stream
-                ->ThenBlasGemmWithAlgorithm(
-                    blas_transpose_b, blas_transpose_a, n, m, k, alpha, b_ptr,
-                    transpose_b ? k : n, a_ptr, transpose_a ? m : k, beta,
-                    &c_ptr, n, computation_type, algorithm_config.algorithm(),
-                    nullptr)
-                .ok();
-        if (!cublas_launch_status) {
-          ctx->SetStatus(errors::Internal(
-              "Blas GEMM with algorithm launch failed : a.shape=(",
-              a.dim_size(0), ", ", a.dim_size(1), "), b.shape=(", b.dim_size(0),
-              ", ", b.dim_size(1), "), m=", m, ", n=", n, ", k=", k));
-        }
-      }
-    }
+    //if (use_autotune && compute_type_supported && !algorithms->empty()) {
+    //  ProfileResult best_result;
+    //  // TODO(yangzihao): Unify this code with conv autotuning.
+    //  if (!AutoTuneMatmul::GetInstance()->Find(matmul_parameters,
+    //                                           &algorithm_config)) {
+    //    ProfileResult profile_result;
+    //    for (auto profile_algorithm : (*algorithms)) {
+    //      // Cublas does
+    //      // C = A x B
+    //      // where A, B and C are assumed to be in column major.
+    //      // We want the output to be in row-major, so we can compute
+    //      // C' = B' x A' (' stands for transpose)
+    //      bool cublas_launch_status =
+    //          stream
+    //              ->ThenBlasGemmWithAlgorithm(
+    //                  blas_transpose_b, blas_transpose_a, n, m, k, alpha, b_ptr,
+    //                  transpose_b ? k : n, a_ptr, transpose_a ? m : k, beta,
+    //                  &c_ptr, n, computation_type, profile_algorithm,
+    //                  &profile_result)
+    //              .ok();
+    //      if (cublas_launch_status) {
+    //        if (profile_result.is_valid()) {
+    //          if (profile_result.elapsed_time_in_ms() <
+    //              best_result.elapsed_time_in_ms()) {
+    //            best_result = profile_result;
+    //          }
+    //        }
+    //      }
+    //    }
+    //    // Try BlasGemmWithProfiling
+    //    bool cublas_launch_status =
+    //        stream
+    //            ->ThenBlasGemmWithProfiling(
+    //                blas_transpose_b, blas_transpose_a, n, m, k, 1.0, b_ptr,
+    //                transpose_b ? k : n, a_ptr, transpose_a ? m : k, 0.0,
+    //                &c_ptr, n, &profile_result)
+    //            .ok();
+    //    if (cublas_launch_status) {
+    //      if (profile_result.is_valid()) {
+    //        if (profile_result.elapsed_time_in_ms() <
+    //            best_result.elapsed_time_in_ms()) {
+    //          best_result = profile_result;
+    //        }
+    //      }
+    //    }
+    //    // Try BlasGemvWithProfiling
+    //    if (ShouldUseGemv<T>(n)) {
+    //      LaunchBlasGemv<T>::Compute(ctx, stream, !transpose_a,
+    //                                 transpose_a ? m : k, transpose_a ? k : m,
+    //                                 a_ptr, b_ptr, &c_ptr, &profile_result);
+    //      if (profile_result.is_valid()) {
+    //        if (profile_result.elapsed_time_in_ms() <
+    //            best_result.elapsed_time_in_ms()) {
+    //          best_result = profile_result;
+    //        }
+    //      }
+    //    }
+    //  }
+    //  // We make sure that each matmul parameter set only gets one pass of
+    //  // autotune. If the best result is found, assign it to algorithm_type
+    //  // and insert it to autotune map. If all internal kernels of
+    //  // cublasGemmEx() returns invalid results, we add kNoAlgorithm to the
+    //  // autotune map.
+    //  if (best_result.is_valid()) {
+    //    algorithm_config.set_algorithm(best_result.algorithm());
+    //  }
+    //  AutoTuneMatmul::GetInstance()->Insert(matmul_parameters,
+    //                                        algorithm_config);
+    //  if (algorithm_config.algorithm() != kNoAlgorithm &&
+    //      algorithm_config.algorithm() != kDefaultBlasGemm &&
+    //      algorithm_config.algorithm() != kDefaultBlasGemv) {
+    //    bool cublas_launch_status =
+    //        stream
+    //            ->ThenBlasGemmWithAlgorithm(
+    //                blas_transpose_b, blas_transpose_a, n, m, k, alpha, b_ptr,
+    //                transpose_b ? k : n, a_ptr, transpose_a ? m : k, beta,
+    //                &c_ptr, n, computation_type, algorithm_config.algorithm(),
+    //                nullptr)
+    //            .ok();
+    //    if (!cublas_launch_status) {
+    //      ctx->SetStatus(errors::Internal(
+    //          "Blas GEMM with algorithm launch failed : a.shape=(",
+    //          a.dim_size(0), ", ", a.dim_size(1), "), b.shape=(", b.dim_size(0),
+    //          ", ", b.dim_size(1), "), m=", m, ", n=", n, ", k=", k));
+    //    }
+    //  }
+    //}
     // For the following case, we use normal BlasGemm():
     //  1) We didn't set the use_autotune flag;
     //  2) compute type does not support autotune;
@@ -466,16 +466,19 @@ class MatMulAMOp : public OpKernel {
   void Compute(OpKernelContext* ctx) override {
     const Tensor& a = ctx->input(0);
     const Tensor& b = ctx->input(1);
+    if (a.dims() == 2) {
+        OP_REQUIRES(ctx, b.dims == 2, errors::InvalidArgument("Input b shold be 2 dimensional"));
+        OP_REQUIRES(ctx, a.shape().dim_size(1) == b.shape().dim_size(0), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+    } else if (a.dims() == 3) {
+        OP_REQUIRES(ctx, b.dims == 3, errors::InvalidArgument("Input b shold be 3 dimensional"));
+        OP_REQUIRES(ctx, a.shape().dim_size(2) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+    } else {
+        OP_REQUIRES(
+                ctx, false,
+                errors::InvalidArgument("Input a and b should be 2 dimensional or 3 dimensional")
+                );
+    }
 
-    // Check that the dimensions of the two matrices are valid.
-    OP_REQUIRES(
-        ctx, TensorShapeUtils::IsMatrix(a.shape()),
-        errors::InvalidArgument("In[0] is not a matrix. Instead it has shape ",
-                                a.shape().DebugString()));
-    OP_REQUIRES(
-        ctx, TensorShapeUtils::IsMatrix(b.shape()),
-        errors::InvalidArgument("In[1] is not a matrix. Instead it has shape ",
-                                b.shape().DebugString()));
     Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1> dim_pair;
     dim_pair[0].first = transpose_a_ ? 0 : 1;
     dim_pair[0].second = transpose_b_ ? 1 : 0;

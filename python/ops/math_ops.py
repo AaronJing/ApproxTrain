@@ -4,8 +4,8 @@ from tensorflow.python.ops import gen_math_ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.util import dispatch
 from tensorflow.python.util.tf_export import tf_export
-import tensorflow
-gen_matmulam = tensorflow.load_op_library('./matmulam.so')
+import tensorflow as tf
+gen_matmulam = tf.load_op_library('./matmulam.so')
 _resource_variable_type = None
 @tf_export("linalg.matmulam", "matmulam")
 @dispatch.add_dispatch_support
@@ -18,7 +18,9 @@ def matmulam(a,
            a_is_sparse=False,
            b_is_sparse=False,
            name=None):
-    with ops.name_scope(name, "MatMul", [a, b]) as name:
+    with ops.name_scope(name, "MatMulAM", [a, b]) as name:
+        if adjoint_a or adjoint_b or a_is_sparse or b_is_sparse:
+            raise ValueError("Matmulam unsupported args: adjoint_a, adjoint_b, a_is_sparse, b_is_sparse.")
         if transpose_a and adjoint_a:
           raise ValueError("Only one of transpose_a and adjoint_a can be True.")
         if transpose_b and adjoint_b:
@@ -42,7 +44,7 @@ def matmulam(a,
             (b_shape is None or len(b_shape) > 2))
 
         if (not a_is_sparse and
-            not b_is_sparse) and output_may_have_non_empty_batch_shape:
+            not b_is_sparse) and output_may_have_non_empty_batch_shape and False:
           # BatchMatmul does not support transpose, so we conjugate the matrix and
           # use adjoint instead. Conj() is a noop for real matrices.
           if transpose_a:
@@ -74,32 +76,36 @@ def matmulam(a,
           # matmul currently doesn't handle mixed-precision inputs.
           use_sparse_matmul = True
         if use_sparse_matmul:
-            ret = gen_matmulam.MatMulAM(
-              a, b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
+            #ret = gen_matmulam.MatMulAM(
+            #  a, b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
+            return gen_matmulam.MatMulAM(
+              a = (tf.linalg.matrix_transpose(a) if transpose_a else a), b=(tf.linalg.matrix_transpose(b) if transpose_b else b), name=name)
           # sparse_matmul always returns float32, even with
           # bfloat16 inputs. This prevents us from configuring bfloat16 training.
           # casting to bfloat16 also matches non-sparse matmul behavior better.
-            return ret
+          # return ret
           #if a.dtype == dtypes.bfloat16 and b.dtype == dtypes.bfloat16:
             #ret = cast(ret, dtypes.bfloat16)
           #return ret
         else:
-          print(dir(gen_matmulam))
           return gen_matmulam.MatMulAM(
-              a=a, b=b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
+              a = (tf.linalg.matrix_transpose(a) if transpose_a else a), b=(tf.linalg.matrix_transpose(b) if transpose_b else b), name=name)
+          #return gen_matmulam.MatMulAM(
+          #    a=a, b=b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
 def _MatMulGradAgainstFirstOnly(op, grad):
   """Gradient for MatMul, only for the first input."""
   t_a = op.get_attr("transpose_a")
   t_b = op.get_attr("transpose_b")
   b = math_ops.conj(op.inputs[1])
   if not t_a and not t_b:
-    grad_a = gen_matmulam.MatMulAM(grad, b, transpose_b=True)
+    #grad_a = gen_matmulam.MatMulAM(grad, b, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(grad, tf.linalg.matrix_transpose(b))
   elif not t_a and t_b:
     grad_a = gen_matmulam.MatMulAM(grad, b)
   elif t_a and not t_b:
-    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(b, tf.linalg.matrix_transpose(grad))
   elif t_a and t_b:
-    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_a=True, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(b), tf.linalg.matrix_transpose(grad))
   return grad_a, None
 
 
@@ -109,13 +115,13 @@ def _MatMulGradAgainstSecondOnly(op, grad):
   t_b = op.get_attr("transpose_b")
   a = math_ops.conj(op.inputs[0])
   if not t_a and not t_b:
-    grad_b = gen_matmulam.MatMulAM(a, grad, transpose_a=True)
+    grad_b = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(a), grad)
   elif not t_a and t_b:
-    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True)
+    grad_b = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(grad), a)
   elif t_a and not t_b:
     grad_b = gen_matmulam.MatMulAM(a, grad)
   elif t_a and t_b:
-    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True, transpose_b=True)
+    grad_b = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(grad), tf.linalg.matrix_transpose(a))
   return None, grad_b
 @ops.RegisterGradient("MatMulAM")
 def _MatMulGrad(op, grad):
@@ -136,15 +142,15 @@ def _MatMulGrad(op, grad):
   a = math_ops.conj(op.inputs[0])
   b = math_ops.conj(op.inputs[1])
   if not t_a and not t_b:
-    grad_a = gen_matmulam.MatMulAM(grad, b, transpose_b=True)
-    grad_b = gen_matmulam.MatMulAM(a, grad, transpose_a=True)
+    grad_a = gen_matmulam.MatMulAM(grad, tf.linalg.matrix_transpose(b))
+    grad_b = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(a), grad)
   elif not t_a and t_b:
     grad_a = gen_matmulam.MatMulAM(grad, b)
-    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True)
+    grad_b = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(grad), a)
   elif t_a and not t_b:
-    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(b, tf.linalg.matrix_transpose(grad))
     grad_b = gen_matmulam.MatMulAM(a, grad)
   elif t_a and t_b:
-    grad_a = gen_matmulam.MatMulAM(b, grad, transpose_a=True, transpose_b=True)
-    grad_b = gen_matmulam.MatMulAM(grad, a, transpose_a=True, transpose_b=True)
+    grad_a = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(b), tf.linalg.matrix_transpose(grad))
+    grad_b = gen_matmulam.MatMulAM(tf.linalg.matrix_transpose(grad), tf.linalg.matrix_transpose(a))
   return grad_a, grad_b
