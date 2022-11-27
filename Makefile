@@ -25,7 +25,7 @@ CUDA_LDFLAGS = -L$(CUDA_LIB) -lcudart
 CONV_OBJ += $(CONV_CUDA_OBJ)
 DENSE_CUDA_OBJ = denseam_kernel.cu.o approx_mul_lut.cu.o
 DENSE_OBJ += $(DENSE_CUDA_OBJ)
-MATMUL_CUDA_OBJ ?= 
+MATMUL_CUDA_OBJ = matmulam_kernel.cu.o gemm.cu.o approx_mul_lut.cu.o 
 MATMUL_OBJ += $(MATMUL_CUDA_OBJ)
 
 ifeq  ($(MULTIPLIER),)
@@ -72,6 +72,8 @@ mul_inc_deps = cuda/AMsimulator.inl
 # cuda stuff
 denseam_kernel.cu.o : cuda/denseam_kernel.cu cuda/error.cuh $(mul_inc_deps) 
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) $(MULTIPLIER_CPPFLAG) -c $< -o $@
+matmulam_kernel.cu.o: cuda/matmulam_kernel.cu cuda/error.cuh cuda/gemm.cuh 
+	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) -c $< -o $@
 cuda_kernel.cu.o: cuda/cuda_kernel.cu cuda/gpu_kernel_helper.h cuda/error.cuh cuda/gemm.cuh cuda/reverseNswapdim23.cuh 
 	$(NVCC) -x cu $(CUDA_CFLAGS) $(CPPFLAGS) --expt-relaxed-constexpr -c $< -o $@
 

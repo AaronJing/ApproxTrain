@@ -38,7 +38,7 @@ limitations under the License.
 #include "approx_mul_lut.h"
 #include "matmulam.h"
 
-namespace tensorflow {
+using namespace tensorflow;
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
 typedef Eigen::GpuDevice GPUDevice;
@@ -56,6 +56,7 @@ REGISTER_OP("MatMulAM")
     .SetShapeFn(shape_inference::MatMulShape);
 
 
+template<>
 class approx_mul_lut<CPUDevice> : public approx_mul_lut_base {
     public:
         explicit approx_mul_lut(OpKernelConstruction *context) : approx_mul_lut_base(
@@ -63,74 +64,13 @@ class approx_mul_lut<CPUDevice> : public approx_mul_lut_base {
                 ) {};
 };
 
-template<typename T>
-void gemm_cpu(
-        const CPUDevice &d, int m, int n, int k, const T *a, int lda,
-        const T *b, int ldb,
-        T *c, int ldc
-        )
-{
-    const size_t aIStride = size_t(lda);
-    const size_t aLStride = 1;
-    const size_t bJStride = 1;
-    const size_t bLStride = size_t(ldb);
-    const size_t cIStride = size_t(ldc);
-    const size_t cJStride = 1;
 
-    for(size_t j = 0; j < size_t(n); ++j)
-    {
-        for(size_t i = 0; i < size_t(m); ++i)
-        {
-            T total(0);
-            for(size_t l = 0; l < size_t(k); ++l)
-            {
-                const size_t aIndex = ((i * aIStride) + (l * aLStride));
-                const T aValue = a[aIndex];
-                const size_t bIndex = ((j * bJStride) + (l * bLStride));
-                const T bValue = b[bIndex];
-                total += (aValue * bValue);
-            }
-            const size_t cIndex = ((i * cIStride) + (j * cJStride));
-            c[cIndex] = total;
-        }
-    }
-}
-template <typename T>
-struct LaunchMatMul<CPUDevice, T> {
-  void launch(
-      const CPUDevice &d, const T& a, const T& b,
-      const int batch, const int row_a, const int col_a, const int row_b,
-      const int col_b, T* out,
-      approx_mul_lut<CPUDevice>& mul_lut
-      ) {
-      if (batch != 0) {
-        for (int i = 0; i < batch; i++){
-            // strided gemm?
-            const T& temp_a = a[i*row_a*col_a];
-            const T& temp_b = b[i*row_b*col_b];
-            T& temp_c = out[i*row_a*col_b];
-            gemm_cpu<T>(ctx->eigen_device<CPUDevice>(), m, n, k, temp_a, lda, temp_b, ldb, temp_c, ldc);
-        }
-      } else {
-        int m = row_a;
-        int n = col_b;
-        int k = col_a;
-        int lda = col_a;
-        int ldb = col_b;
-        int ldc = col_b;
-        gemm_cpu<T>(ctx->eigen_device<CPUDevice>(), m, n, k, a, lda, b, ldb, out, ldc);
-      }
-};
 
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-
-template <typename Device, typename T, bool USE_CUBLAS>
+template <typename Device, typename T>
 class MatMulAMOp : public OpKernel {
  public:
   explicit MatMulAMOp(OpKernelConstruction* ctx)
-      : OpKernel(ctx), mul_lut_(contest){
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_a", &transpose_a_));
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_b", &transpose_b_));
+      : OpKernel(ctx), mul_lut_(ctx){
 
   }
 
@@ -181,7 +121,7 @@ class MatMulAMOp : public OpKernel {
       // If a has shape [x, 0] and b has shape [0, y], the
       // output shape is [x, y] where x and y are non-zero, so we fill
       // the output with zeros.
-      std::memset(out->flat<T>(), 0, sizeof(T)*out->NumElements())
+      std::memset(out->flat<T>().data(), 0, sizeof(T)*out->NumElements());
       return;
     }
 
@@ -193,17 +133,76 @@ class MatMulAMOp : public OpKernel {
     auto b_data = b.flat<T>().data();
     auto output = out->flat<T>().data();
     LaunchMatMul<Device, T>::launch(
-          ctx->eigen_device<Device>(), a_data, b_data, batch, row_a, col_a, row_b, col_b, output, mul_mut_ );
+          ctx->eigen_device<Device>(), a_data, b_data, batch, row_a, col_a, row_b, col_b, output, mul_lut_ );
 
+ }
  private:
     approx_mul_lut<Device> mul_lut_;
     TF_DISALLOW_COPY_AND_ASSIGN(MatMulAMOp);
+};
+template<typename T>
+void gemm_cpu(
+        const CPUDevice &d, int m, int n, int k, const T *a, int lda,
+        const T *b, int ldb,
+        T *c, int ldc
+        )
+{
+    const size_t aIStride = size_t(lda);
+    const size_t aLStride = 1;
+    const size_t bJStride = 1;
+    const size_t bLStride = size_t(ldb);
+    const size_t cIStride = size_t(ldc);
+    const size_t cJStride = 1;
+
+    for(size_t j = 0; j < size_t(n); ++j)
+    {
+        for(size_t i = 0; i < size_t(m); ++i)
+        {
+            T total(0);
+            for(size_t l = 0; l < size_t(k); ++l)
+            {
+                const size_t aIndex = ((i * aIStride) + (l * aLStride));
+                const T aValue = a[aIndex];
+                const size_t bIndex = ((j * bJStride) + (l * bLStride));
+                const T bValue = b[bIndex];
+                total += (aValue * bValue);
+            }
+            const size_t cIndex = ((i * cIStride) + (j * cJStride));
+            c[cIndex] = total;
+        }
+    }
+};
+template <typename T>
+struct LaunchMatMul<CPUDevice, T> {
+  void launch(
+      const CPUDevice &d, const T& a, const T& b,
+      const int batch, const int row_a, const int col_a, const int row_b,
+      const int col_b, T* out,
+      approx_mul_lut<CPUDevice>& mul_lut
+      ) {
+      int m = row_a;
+      int n = col_b;
+      int k = col_a;
+      int lda = col_a;
+      int ldb = col_b;
+      int ldc = col_b;
+      if (batch != 0) {
+        for (int i = 0; i < batch; i++){
+            // strided gemm?
+            const T& temp_a = a[i*row_a*col_a];
+            const T& temp_b = b[i*row_b*col_b];
+            T& temp_c = out[i*row_a*col_b];
+            gemm_cpu<T>(d, m, n, k, temp_a, lda, temp_b, ldb, temp_c, ldc);
+        }
+      } else {
+        gemm_cpu<T>(d, m, n, k, a, lda, b, ldb, out, ldc);
+      }
+  }
 };
 
 #define REGISTER_GPU(T)                                            \
   REGISTER_KERNEL_BUILDER(                                         \
       Name("MatMulAM").Device(DEVICE_GPU).TypeConstraint<T>("T"),    \
-      MatMulAMOp<GPUDevice, T, true /* cublas, true by default */>); \
+      MatMulAMOp<GPUDevice, T>); \
 
-REGISTER_GPU(float);
-}  // namespace tensorflow
+REGISTER_GPU(float)

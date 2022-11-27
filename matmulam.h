@@ -8,7 +8,7 @@
 #include "approx_mul_lut.h"
 
 template <typename Device, typename T>
-struct LaunchMatMul<Device, T>{
+struct LaunchMatMul{
   void launch(
       const Device &d, const T& a, const T& b,
       const int batch, const int row_a, const int col_a, const int row_b,
