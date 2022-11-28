@@ -9,8 +9,8 @@
 
 template <typename Device, typename T>
 struct LaunchMatMul{
-  void launch(
-      const Device &d, const T& a, const T& b,
+  void operator()(
+      const Device &d, const T* a, const T* b,
       const int batch, const int row_a, const int col_a, const int row_b,
       const int col_b, T* out,
       approx_mul_lut<Device>& mul_lut
@@ -19,12 +19,12 @@ struct LaunchMatMul{
 #if GOOGLE_CUDA 
 template <typename T>
 struct LaunchMatMul<Eigen::GpuDevice, T>{
-  void launch(
-      const Eigen::GpuDevice &d, const T& a, const T& b,
+  void operator()(
+      const Eigen::GpuDevice &d, const T* a, const T* b,
       const int batch, const int row_a, const int col_a, const int row_b,
       const int col_b, T* out,
       approx_mul_lut<Eigen::GpuDevice>& mul_lut
       );
 };
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#endif   
 #endif  

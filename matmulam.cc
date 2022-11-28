@@ -132,7 +132,7 @@ class MatMulAMOp : public OpKernel {
     auto a_data = a.flat<T>().data();
     auto b_data = b.flat<T>().data();
     auto output = out->flat<T>().data();
-    LaunchMatMul<Device, T>::launch(
+    LaunchMatMul<Device, T>()(
           ctx->eigen_device<Device>(), a_data, b_data, batch, row_a, col_a, row_b, col_b, output, mul_lut_ );
 
  }
@@ -174,7 +174,7 @@ void gemm_cpu(
 };
 template <typename T>
 struct LaunchMatMul<CPUDevice, T> {
-  void launch(
+  void operator()(
       const CPUDevice &d, const T& a, const T& b,
       const int batch, const int row_a, const int col_a, const int row_b,
       const int col_b, T* out,
