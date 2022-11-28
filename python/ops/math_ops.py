@@ -17,6 +17,7 @@ def matmulam(a,
            adjoint_b=False,
            a_is_sparse=False,
            b_is_sparse=False,
+           mant_mul_lut='', 
            name=None):
     with ops.name_scope(name, "MatMulAM", [a, b]) as name:
         if adjoint_a or adjoint_b or a_is_sparse or b_is_sparse:
@@ -79,7 +80,7 @@ def matmulam(a,
             #ret = gen_matmulam.MatMulAM(
             #  a, b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
             return gen_matmulam.MatMulAM(
-              a = (tf.linalg.matrix_transpose(a) if transpose_a else a), b=(tf.linalg.matrix_transpose(b) if transpose_b else b), name=name)
+              a = (tf.linalg.matrix_transpose(a) if transpose_a else a), b=(tf.linalg.matrix_transpose(b) if transpose_b else b), name=name, mant_mul_lut = mant_mul_lut)
           # sparse_matmul always returns float32, even with
           # bfloat16 inputs. This prevents us from configuring bfloat16 training.
           # casting to bfloat16 also matches non-sparse matmul behavior better.
@@ -89,7 +90,7 @@ def matmulam(a,
           #return ret
         else:
           return gen_matmulam.MatMulAM(
-              a = (tf.linalg.matrix_transpose(a) if transpose_a else a), b=(tf.linalg.matrix_transpose(b) if transpose_b else b), name=name)
+              a = (tf.linalg.matrix_transpose(a) if transpose_a else a), b=(tf.linalg.matrix_transpose(b) if transpose_b else b), name=name, mant_mul_lut = mant_mul_lut)
           #return gen_matmulam.MatMulAM(
           #    a=a, b=b, transpose_a=transpose_a, transpose_b=transpose_b, name=name)
 def _MatMulGradAgainstFirstOnly(op, grad):

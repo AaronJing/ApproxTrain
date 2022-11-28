@@ -77,40 +77,74 @@ class MatMulAMOp : public OpKernel {
   void Compute(OpKernelContext* ctx) override {
     const Tensor& a = ctx->input(0);
     const Tensor& b = ctx->input(1);
-    int batch = 0;
+    int batch_a = 0;
+    int batch_b = 0;
     int row_a = 0;
     int col_a = 0;
     int row_b = 0;
     int col_b = 0;
-    if (a.dims() == 2) {
-        OP_REQUIRES(ctx, b.dims() == 2, errors::InvalidArgument("Input b shold be 2 dimensional"));
+    if (a.dims() == 2 && b.dims() == 2) {
         OP_REQUIRES(ctx, a.shape().dim_size(1) == b.shape().dim_size(0), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
         row_a = a.shape().dim_size(0);
         col_a = a.shape().dim_size(1);
         row_b = b.shape().dim_size(0);
         col_b = b.shape().dim_size(1);
-    } else if (a.dims() == 3) {
-        OP_REQUIRES(ctx, b.dims() == 3, errors::InvalidArgument("Input b shold be 3 dimensional"));
-        OP_REQUIRES(ctx, a.shape().dim_size(0) == b.shape().dim_size(0), errors::InvalidArgument("Does not meet batch of mat a is equal batch of matb"));
+    } else if (a.dims() == 3 && b.dims() == 3) {
+        OP_REQUIRES(ctx, a.shape().dim_size(0) == b.shape().dim_size(0) or a.shape().dim_size(0) == 1 or b.shape().dim_size(0) == 1, errors::InvalidArgument("Does not meet batch of mat a is equal batch of matb"));
         OP_REQUIRES(ctx, a.shape().dim_size(2) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
-        OP_REQUIRES(ctx, a.shape().dim_size(2) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
-        batch = a.shape().dim_size(0);
+        batch_a = a.shape().dim_size(0);
+        batch_b = b.shape().dim_size(0);
         row_a = a.shape().dim_size(1);
         col_a = a.shape().dim_size(2);
         row_b = b.shape().dim_size(1);
         col_b = b.shape().dim_size(2);
+    } else if (b.dims() == 3 && a.dims() == 2) {
+        OP_REQUIRES(ctx, a.shape().dim_size(1) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+        batch_b = b.shape().dim_size(0);    
+        row_a = a.shape().dim_size(0);
+        col_a = a.shape().dim_size(1);
+        row_b = b.shape().dim_size(1);
+        col_b = b.shape().dim_size(2);
+    } else if (b.dims() == 2 && a.dims() == 3) {
+        OP_REQUIRES(ctx, a.shape().dim_size(2) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+        batch_a = a.shape().dim_size(0);    
+        row_a = a.shape().dim_size(1);
+        col_a = a.shape().dim_size(2);
+        row_b = b.shape().dim_size(0);
+        col_b = b.shape().dim_size(1);
     } else {
         OP_REQUIRES(
                 ctx, false,
-                errors::InvalidArgument("Input a and b should be 2 dimensional or 3 dimensional")
+                errors::InvalidArgument("Input a and b should be 2 dimensional or 3 dimensional and compitable batch size")
                 );
     }
 
-    TensorShape out_shape(
-        {a.dim_size(0), a.dim_size(0), b.dim_size(1)});
     Tensor* out = nullptr;
-    OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
-
+    if (batch_a!=0 || batch_b!=0) {
+        if (batch_a != 0 && batch_b != 0) {
+            if (batch_a == 1 || batch_b == 1){
+                if (batch_a > batch_b) {
+                    TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(2)});
+                    OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+                } else {
+                    TensorShape out_shape({b.dim_size(0), a.dim_size(1), b.dim_size(2)});
+                    OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+                } 
+            } else {
+                TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(2)});
+                OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+            }
+        } else if ( batch_a != 0) {
+            TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(1)});
+            OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+        } else {
+            TensorShape out_shape({b.dim_size(0), a.dim_size(0), b.dim_size(2)});
+            OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+        }
+    } else { 
+        TensorShape out_shape1({a.dim_size(0), b.dim_size(1)});
+        OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape1, &out));
+    }
     if (out->NumElements() == 0) {
       // If a has shape [0, x] or b has shape [x, 0], the output shape
       // is a 0-element matrix, so there is nothing to do.
@@ -133,7 +167,7 @@ class MatMulAMOp : public OpKernel {
     auto b_data = b.flat<T>().data();
     auto output = out->flat<T>().data();
     LaunchMatMul<Device, T>()(
-          ctx->eigen_device<Device>(), a_data, b_data, batch, row_a, col_a, row_b, col_b, output, mul_lut_ );
+          ctx->eigen_device<Device>(), a_data, b_data, batch_a, batch_b, row_a, col_a, row_b, col_b, output, mul_lut_ );
 
  }
  private:
@@ -176,7 +210,7 @@ template <typename T>
 struct LaunchMatMul<CPUDevice, T> {
   void operator()(
       const CPUDevice &d, const T& a, const T& b,
-      const int batch, const int row_a, const int col_a, const int row_b,
+      const int batch_a, const int batch_b, const int row_a, const int col_a, const int row_b,
       const int col_b, T* out,
       approx_mul_lut<CPUDevice>& mul_lut
       ) {
@@ -186,13 +220,45 @@ struct LaunchMatMul<CPUDevice, T> {
       int lda = col_a;
       int ldb = col_b;
       int ldc = col_b;
-      if (batch != 0) {
-        for (int i = 0; i < batch; i++){
+      if (batch_a != 0 && batch_b != 0) {
+        if (batch_a > batch_b) {
+            for (int i = 0; i < batch_a; i++){
+                // strided gemm?
+                const T& temp_a = a + i*row_a*col_a;
+                T& temp_c = out + i*row_a*col_b;
+                gemm_cpu<T>(d, m, n, k, temp_a, lda, b, ldb, temp_c, ldc);
+            }
+        } else if (batch_a != 1 && batch_b != 1) {
+            for (int i = 0; i < batch_b; i++){
+                // strided gemm?
+                const T& temp_a = a + i*row_a*col_a;
+                const T& temp_b = b + i*row_b*col_b;
+                T& temp_c = out + i*row_a*col_b;
+                gemm_cpu<T>(d, m, n, k, temp_a, lda, temp_b, ldb, temp_c, ldc);
+            }
+        
+        } else {
+            for (int i = 0; i < batch_b; i++){
+                // strided gemm?
+                const T& temp_b = b + i*row_b*col_b;
+                T& temp_c = out + i*row_a*col_b;
+                gemm_cpu<T>(d, m, n, k, a, lda, temp_b, ldb, temp_c, ldc);
+            }
+        
+        }
+      } else if (batch_a!=0){
+        for (int i = 0; i < batch_a; i++){
             // strided gemm?
-            const T& temp_a = a[i*row_a*col_a];
-            const T& temp_b = b[i*row_b*col_b];
-            T& temp_c = out[i*row_a*col_b];
-            gemm_cpu<T>(d, m, n, k, temp_a, lda, temp_b, ldb, temp_c, ldc);
+            const T& temp_a = a + i*row_a*col_a;
+            T& temp_c = out + i*row_a*col_b;
+            gemm_cpu<T>(d, m, n, k, temp_a, lda, b, ldb, temp_c, ldc);
+        }
+      } else if (batch_b!=0) {
+        for (int i = 0; i < batch_b; i++){
+            // strided gemm?
+            const T& temp_b = a + i*row_b*col_b;
+            T& temp_c = out + i*row_a*col_b;
+            gemm_cpu<T>(d, m, n, k, a, lda, temp_b, ldb, temp_c, ldc);
         }
       } else {
         gemm_cpu<T>(d, m, n, k, a, lda, b, ldb, out, ldc);
