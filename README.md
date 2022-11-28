@@ -65,6 +65,13 @@ sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
 
 Further details and alternative installation methods can be found [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
 
+## Supporting operands
+| Apporximate Operator | Tensorflow equivalent | Gradient Computation | Status   |
+|----------------------|-----------------------|----------------------|----------|
+| AMConv2D             | Conv2D                | ✔                    | Complete |
+| denseam              | Dense                 | ✔                    | Complete |
+| MatMulAM             | MatMul                | ✔                    | Complete |
+| AMMHT                | MultiHeadAttention    | ✔                    | WiP      |
 
 ## Running an Example
 
