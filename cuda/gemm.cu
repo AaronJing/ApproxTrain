@@ -9,6 +9,9 @@ using namespace tensorflow;
 #ifdef AMSIMULATOR
    #define MULTIPLY(a,b) AMsimulator((a), (b), mant_lut, mant_mask, a_shift, b_shift, mant_bitwidth);
    #include "AMsimulator.inl"
+#elif AMMBM32
+   #define MULTIPLY(a,b) FPmultMBM_fast32((a), (b));
+   #include "FPmultMBM_fast32.inl"
 #else
    #define MULTIPLY(a,b) ((a)*(b));
 #endif

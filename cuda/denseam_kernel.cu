@@ -7,13 +7,16 @@
 
 using namespace tensorflow;
 using GpuDevice = Eigen::GpuDevice;
+
 #ifdef AMSIMULATOR
-   #define MULTIPLY(a,b) AMsimulator((a), (b), lut, mant_mask, a_shift, b_shift, mant_bitwidth);
+   #define MULTIPLY(a,b) AMsimulator((a), (b), mant_lut, mant_mask, a_shift, b_shift, mant_bitwidth);
    #include "AMsimulator.inl"
+#elif AMMBM32
+   #define MULTIPLY(a, b) AMMBM32((a), (b));
+   #include "FPmultMBM_fast32.inl"
 #else
    #define MULTIPLY(a,b) ((a)*(b));
 #endif
-
 
 template <typename T>
 __global__ void DenseamKernel(
