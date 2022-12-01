@@ -2,7 +2,7 @@
 #include "approx_mul_lut.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
-#include "tensorflow/core/platform/default/logging.h"
+#include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/util/mirror_pad_mode.h"
@@ -111,7 +111,7 @@ Status ConvBackpropExtractAndVerifyDimensionV2(
             << ", pad_before = " << dim->pad_before
             << ", pad_after = " << dim->pad_after
             << ", dilation = " << dim->dilation << ", strides = " << dim->stride;
-    return Status::OK();
+    return OkStatus();
 }
 
 Status ConvBackpropExtractAndVerifyDimension(
@@ -179,7 +179,7 @@ Status ConvBackpropComputeDimensionsV2(
         label, input_shape, filter_shape, out_backprop_shape, dilations,
         strides, padding, image_dim, i, &dims->spatial_dims[i]));
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 Status ConvBackpropComputeDimensions(StringPiece label, int num_spatial_dims,
@@ -309,7 +309,7 @@ Status InitConv2DParameters(const OpKernelConstruction* context,
       dilation_h > 0 && dilation_w > 0,
       errors::InvalidArgument("Dilated rates should be larger than 0."));
 
-  return Status::OK();
+  return OkStatus();
 }
 
 Status ComputeConv2DDimension(const Conv2DParameters& params,
@@ -403,7 +403,7 @@ Status ComputeConv2DDimension(const Conv2DParameters& params,
   dimensions->pad_rows = pad_rows;
   dimensions->pad_cols = pad_cols;
 
-  return Status::OK();
+  return OkStatus();
 }
 #undef TF_REQUIRES
 
@@ -703,7 +703,7 @@ REGISTER_OP("ConvamFilterGrad")
       TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(0, &s));
       TF_RETURN_IF_ERROR(c->WithRank(s, 4, &s));
       c->set_output(0, s);
-      return Status::OK();
+      return OkStatus();
     });
 
 template <typename Device, typename T>
@@ -971,7 +971,7 @@ REGISTER_OP("ConvamInputGrad")
       TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(0, &s));
       TF_RETURN_IF_ERROR(c->WithRank(s, 4, &s));
       c->set_output(0, s);
-      return Status::OK();
+      return OkStatus();
     });
 template <typename Device, typename T>
 class ConvamInputGradOp: public OpKernel {

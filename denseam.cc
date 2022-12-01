@@ -4,7 +4,7 @@
 // #include "tensorflow/core/kernels/conv_ops.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
-#include "tensorflow/core/platform/default/logging.h"
+#include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/util/mirror_pad_mode.h"
@@ -53,7 +53,7 @@ REGISTER_OP("Denseam")
   
   c->set_output(0, c->Matrix(samples, units));
 
-    return Status::OK();
+    return OkStatus();
   });
 template <typename T>
 struct DenseamFunctor<CPUDevice, T>{
