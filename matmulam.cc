@@ -78,7 +78,11 @@ class MatMulAMOp : public OpKernel {
     const Tensor& a = ctx->input(0);
     const Tensor& b = ctx->input(1);
     int batch_a = 0;
+    // quick fix for experiment, we should support batch after revision
+    int batch_a_outer = 0;
     int batch_b = 0;
+    // quick fix for experiment, we should support batch after revision
+    int batch_b_outer =0;
     int row_a = 0;
     int col_a = 0;
     int row_b = 0;
@@ -112,6 +116,20 @@ class MatMulAMOp : public OpKernel {
         col_a = a.shape().dim_size(2);
         row_b = b.shape().dim_size(0);
         col_b = b.shape().dim_size(1);
+    } else if (b.dims()==4 && a.dims()==4){
+        OP_REQUIRES(ctx, a.shape().dim_size(0) == b.shape().dim_size(0), errors::InvalidArgument("Does not meet outer batch of mat a is equal outer batch of matb"));
+        OP_REQUIRES(ctx, a.shape().dim_size(1) == b.shape().dim_size(1), errors::InvalidArgument("Does not meet batch of mat a is equal batch of matb"));
+        OP_REQUIRES(ctx, a.shape().dim_size(3) == b.shape().dim_size(2), errors::InvalidArgument("Does not meet cols of mat a is equal rows of mat b"));
+        batch_a_outer = a.shape().dim_size(0);    
+        batch_a = a.shape().dim_size(1);    
+        batch_b_outer = b.shape().dim_size(0);    
+        batch_b = b.shape().dim_size(1);    
+
+        row_a = a.shape().dim_size(2);
+        col_a = a.shape().dim_size(3);
+        row_b = b.shape().dim_size(2);
+        col_b = b.shape().dim_size(3);
+    
     } else {
         OP_REQUIRES(
                 ctx, false,
@@ -120,36 +138,42 @@ class MatMulAMOp : public OpKernel {
     }
 
     Tensor* out = nullptr;
-    if (batch_a!=0 || batch_b!=0) {
-        if (batch_a != 0 && batch_b != 0) {
-            if (batch_a == 1 || batch_b == 1){
-                if (batch_a > batch_b) {
+    if (batch_a_outer == 0 && batch_b_outer == 0){
+        if (batch_a!=0 || batch_b!=0) {
+            if (batch_a != 0 && batch_b != 0) {
+                if (batch_a == 1 || batch_b == 1){
+                    if (batch_a > batch_b) {
+                        TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(2)});
+                        OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+                    } else {
+                        TensorShape out_shape({b.dim_size(0), a.dim_size(1), b.dim_size(2)});
+                        OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+                    } 
+                } else {
                     TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(2)});
                     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
-                } else {
-                    TensorShape out_shape({b.dim_size(0), a.dim_size(1), b.dim_size(2)});
-                    OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
-                } 
+                }
+            } else if ( batch_a != 0) {
+                TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(1)});
+                OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
             } else {
-                TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(2)});
+                TensorShape out_shape({b.dim_size(0), a.dim_size(0), b.dim_size(2)});
                 OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
             }
-        } else if ( batch_a != 0) {
-            TensorShape out_shape({a.dim_size(0), a.dim_size(1), b.dim_size(1)});
-            OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
-        } else {
-            TensorShape out_shape({b.dim_size(0), a.dim_size(0), b.dim_size(2)});
-            OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+        } else { 
+            TensorShape out_shape1({a.dim_size(0), b.dim_size(1)});
+            OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape1, &out));
         }
-    } else { 
-        TensorShape out_shape1({a.dim_size(0), b.dim_size(1)});
-        OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape1, &out));
+    } else {
+        TensorShape out_shape({b.dim_size(0), b.dim_size(1), a.dim_size(2), b.dim_size(3)});
+        OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+        batch_a = batch_a * batch_a_outer;
+        batch_b = batch_b * batch_b_outer;
     }
     if (out->NumElements() == 0) {
       // If a has shape [0, x] or b has shape [x, 0], the output shape
       // is a 0-element matrix, so there is nothing to do.
       return;
-    }
 
     if (a.NumElements() == 0 && b.NumElements() == 0) {
       // If a has shape [x, 0] and b has shape [0, y], the
