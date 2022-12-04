@@ -8,12 +8,15 @@
 using namespace tensorflow;
 using GpuDevice = Eigen::GpuDevice;
 
-#ifdef AMSIMULATOR
+#ifdef LUT
    #define MULTIPLY(a,b) AMsimulator((a), (b), mant_lut, mant_mask, a_shift, b_shift, mant_bitwidth);
    #include "AMsimulator.inl"
-#elif AMMBM32
-   #define MULTIPLY(a, b) FPmultMBM_fast32((a), (b));
+#elif AFM32
+   #define MULTIPLY(a,b) FPmultMBM_fast32((a), (b));
    #include "FPmultMBM_fast32.inl"
+#elif ACC16
+   #define MULTIPLY(a,b) bfloat16mul((a), (b));
+   #include "bfloat.inl"
 #else
    #define MULTIPLY(a,b) ((a)*(b));
 #endif
@@ -26,7 +29,7 @@ __global__ void DenseamKernel(
     const int units, 
     const int input_width, 
     T* output, 
-    cudaTextureObject_t lut,
+    cudaTextureObject_t mant_lut,
     const uint32_t mant_mask,
     const uint8_t a_shift,
     const uint8_t b_shift, const uint8_t mant_bitwidth
@@ -52,7 +55,7 @@ __global__ void DenseamWeightsKernel(
     const int batch, 
     const int units, 
     T* grad_weights,
-    cudaTextureObject_t lut,
+    cudaTextureObject_t mant_lut,
     const uint32_t mant_mask,
     const uint8_t a_shift,
     const uint8_t b_shift, const uint8_t mant_bitwidth
@@ -78,7 +81,7 @@ __global__ void DenseamInputKernel(
     const int batch, 
     const int units, 
     T* grad_inputs, 
-    cudaTextureObject_t lut,
+    cudaTextureObject_t mant_lut,
     const uint32_t mant_mask,
     const uint8_t a_shift,
     const uint8_t b_shift, const uint8_t mant_bitwidth

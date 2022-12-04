@@ -9,7 +9,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 
 import tensorflow as tf
-gen_matmulam = tf.load_op_library('./matmulam.so')
+gen_matmulam = tf.load_op_library('./matmulamAFM32.so')
 _resource_variable_type = None
 @tf_export("linalg.matmulam", "matmulam")
 @dispatch.add_dispatch_support
@@ -22,6 +22,7 @@ def matmulam(a,
            a_is_sparse=False,
            b_is_sparse=False,
            mant_mul_lut='', 
+           mul='',
            name=None):
     with ops.name_scope(name, "MatMulAM", [a, b]) as name:
         if adjoint_a or adjoint_b or a_is_sparse or b_is_sparse:

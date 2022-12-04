@@ -9,11 +9,16 @@ TF_LFLAGS := $(shell python3 -c 'import tensorflow as tf; print(" ".join(tf.sysc
 CPPFLAGS += $(TF_CFLAGS)
 LDFLAGS += $(TF_LFLAGS)
 
-CONV_BINARY = convam_gpu.so
+ifeq  ($(MULTIPLIER),)
+    MULTIPLIER_CPPFLAG =
+else
+	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
+endif
+CONV_BINARY = convam_gpu${MULTIPLIER}.so
 CONV_OBJ = convam.o
-DENSE_BINARY = denseam_gpu.so
+DENSE_BINARY = denseam_gpu${MULTIPLIER}.so
 DENSE_OBJ = denseam.o
-MATMUL_BINARY = matmulam.so
+MATMUL_BINARY = matmulam${MULTIPLIER}.so
 MATMUL_OBJ = matmulam.o
 
 CUDA_ROOT = /usr/local/cuda
@@ -28,11 +33,6 @@ DENSE_OBJ += $(DENSE_CUDA_OBJ)
 MATMUL_CUDA_OBJ = matmulam_kernel.cu.o gemm.cu.o approx_mul_lut.cu.o 
 MATMUL_OBJ += $(MATMUL_CUDA_OBJ)
 
-ifeq  ($(MULTIPLIER),)
-    MULTIPLIER_CPPFLAG =
-else
-	MULTIPLIER_CPPFLAG = -D $(MULTIPLIER)=1
-endif
 
 .PHONY: clean test
 
