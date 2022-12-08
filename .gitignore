@@ -79,3 +79,4 @@ sparsity_acc_all
 lut/*.bin
 *.bin
 *.pdf
+temp*
