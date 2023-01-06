@@ -71,7 +71,7 @@ Further details and alternative installation methods can be found [installation 
 | AMConv2D             | Conv2D                | ✔                    | Complete |
 | denseam              | Dense                 | ✔                    | Complete |
 | MatMulAM             | MatMul                | ✔                    | Complete |
-| AMMHT                | MultiHeadAttention    | ✔                    | WiP      |
+| AMMHA                | MultiHeadAttention    | ✔                    | Complete |
 
 ## Running an Example
 
