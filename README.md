@@ -153,3 +153,17 @@ Mitchell logarithm-based approximate multiplier: [Computer Multiplication and Di
 Minimally biased multipliers: [Minimally Biased Multipliers for Approximate Integer and Floating-Point Multiplication](https://ieeexplore.ieee.org/document/5219391)
 
 Some code snippets have been taken from [tfapprox](https://github.com/ehw-fit/tf-approximate), [add custom operand to tensorflow](https://github.com/tensorflow/custom-op) and [tensorflow](https://github.com/tensorflow/tensorflow).
+
+## Citing ApproxTrain
+If ApproxTrain helps you in your academic research, you are encouraged to cite our paper. 
+```
+@ARTICLE{approxtrain-tcad,
+  author={Gong, Jing and Saadat, Hassaan and Gamaarachchi, Hasindu and Javaid, Haris and Hu, Xiaobo Sharon and Parameswaran, Sri},
+  journal={IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems}, 
+  title={ApproxTrain: Fast Simulation of Approximate Multipliers for DNN Training and Inference}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={1-1},
+  doi={10.1109/TCAD.2023.3253045}}
+```
