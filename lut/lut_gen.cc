@@ -71,6 +71,10 @@ void floatToBinary(float f, std::string& str)
     #include "bfloat.inl"
     #define MANTISSA_BITWIDTH 7
     std::string lut_save = "ACC_7.bin";
+#elif ZEROS
+    #define MULTIPLY(a,b) 0;
+    #define MANTISSA_BITWIDTH 7
+    std::string lut_save = "ZEROS_7.bin";
 #endif
 
 #define EMPTYFP32 0x00000000

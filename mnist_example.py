@@ -3,6 +3,8 @@ import tensorflow_datasets as tfds
 import sys
 from python.keras.layers.am_convolutional import AMConv2D
 from python.keras.layers.amdenselayer import denseam
+tf.random.set_seed(0)
+
 (ds_train, ds_test), ds_info = tfds.load(
     'mnist',
     split=['train', 'test'],
@@ -14,7 +16,7 @@ def normalize_img(image, label):
   """Normalizes images: `uint8` -> `float32`."""
   return tf.cast(image, tf.float32) / 255., label
 
-lut_file = "lut/MIT_7.bin"
+lut_file = "lut/MBM_7.bin"
 ds_train = ds_train.map(
     normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 ds_train = ds_train.cache()

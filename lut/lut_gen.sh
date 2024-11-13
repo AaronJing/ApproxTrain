@@ -9,6 +9,7 @@ MULTIPLIER=(
    "MITCHEL12_MULTIPLIER"
    "MITCHEL10_MULTIPLIER"
    "BFLOAT"
+   "ZEROS"
 )
 for i in "${MULTIPLIER[@]}"; do
     g++ -D$i lut_gen.cc
