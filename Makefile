@@ -1,7 +1,7 @@
 CC       = gcc
 CXX      = g++
 CPPFLAGS += -DGOOGLE_CUDA=1 -I.
-CFLAGS   += -g -Wall -O2 -std=c++11  -fPIC
+CFLAGS   += -g -Wall -O2 -std=c++14  -fPIC
 LDFLAGS  +=
 
 TF_CFLAGS := $(shell python3 -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
@@ -20,7 +20,7 @@ CUDA_ROOT = /usr/local/cuda
 CUDA_LIB ?= $(CUDA_ROOT)/lib64
 CONV_CUDA_OBJ = cuda_kernel.cu.o  gemm.cu.o reverseNswapdim23.cu.o approx_mul_lut.cu.o 
 NVCC ?= nvcc
-CUDA_CFLAGS += -g  -O2 -std=c++11 $(CUDA_ARCH) -Xcompiler -Wall -Xcompiler -fPIC  -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored --expt-relaxed-constexpr
+CUDA_CFLAGS += -g  -O2 -std=c++14 $(CUDA_ARCH) -Xcompiler -Wall -Xcompiler -fPIC  -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored --expt-relaxed-constexpr
 CUDA_LDFLAGS = -L$(CUDA_LIB) -lcudart
 CONV_OBJ += $(CONV_CUDA_OBJ)
 DENSE_CUDA_OBJ = denseam_kernel.cu.o approx_mul_lut.cu.o

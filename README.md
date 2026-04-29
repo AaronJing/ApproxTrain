@@ -1,60 +1,104 @@
 # ApproxTrain
 
-ApproxTrain is an open-source framework that allows sufficiently fast evaluation of DNNs training and inference using simulated approximate multipliers. ApproxTrain is as user-friendly as TensorFlow  (TF) and requires only a high-level description of a DNN architecture along with C/C++ functional models of the approximate multiplier. We improve the speed of the simulation at the multiplier level using a novel LUT-based approximate floating-point (FP) multiplier on GPU (AM Simulator). Additionally, a novel flow is presented to seamlessly convert C/C++ functional models of approximate FP multipliers into AM Simulator. ApproxTrain leverages CUDA and efficiently integrates AM Siumlator into TensorFlow library, to overcome the absence of native hardware approximate multiplier in commercial GPUs.
+ApproxTrain is an open-source framework that allows sufficiently fast evaluation of DNNs training and inference using simulated approximate multipliers. ApproxTrain is as user-friendly as TensorFlow (TF) and requires only a high-level description of a DNN architecture along with C/C++ functional models of the approximate multiplier. We improve the speed of the simulation at the multiplier level using a novel LUT-based approximate floating-point (FP) multiplier on GPU (AM Simulator). Additionally, a novel flow is presented to seamlessly convert C/C++ functional models of approximate FP multipliers into AM Simulator. ApproxTrain leverages CUDA and efficiently integrates AM Simulator into the TensorFlow library, to overcome the absence of native hardware approximate multipliers in commercial GPUs.
 
-## Installation of Dependencies   
+## Updated environment, for GUI release
 
-ApproxTrain requires Tensorflow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python3. We recommend using Python 3.5-3.8 and g++ 5.4.0 or higher.
-We did the development and testing on an Ubuntu 18.04.6 environment with Tensorflow 2.3.0, CUDA 10.1, CuDNN 7.6.5, g++ 8.4 and python 3.6.9. A brief guide on installing those dependency versions on an Ubuntu system are given below. Alternatively, If you can follow the official  TensorFlow [build guide](https://www.tensorflow.org/install/source).
+If you are using a recent version of Ubuntu, the following, newer environment is recommended.
 
+- Python 3.6.x
+- CUDA Toolkit 11.8
+- cuDNN 8.9.2
+- TensorFlow 2.6.2
+- TensorFlow Datasets 4.5.2
 
-### Tensorflow 2.3
-    
+Recommended packages:
+
+- `tensorflow==2.6.2`
+- `keras==2.6.0`
+- `tensorflow-datasets==4.5.2`
+- `tensorflow-estimator==2.6.0`
+- `tensorflow-metadata==1.2.0`
+- `tensorboard==2.6.0`
+- `numpy==1.19.5`
+- `matplotlib==3.3.4`
+- `h5py==3.1.0`
+- `pillow==8.4.0`
+- `grpcio==1.48.2`
+- `protobuf==3.19.6`
+- `werkzeug==2.0.3`
+- `tqdm==4.64.1`
+
+```bash
+conda create -n approxtrain python=3.6.13 cudatoolkit=11.8 cudnn=8.9.2 -c conda-forge
+conda activate approxtrain
+pip install \
+  tensorflow==2.6.2 \
+  tensorflow-datasets==4.5.2 \
+  keras==2.6.0 \
+  numpy==1.19.5 \
+  matplotlib==3.3.4 \
+  h5py==3.1.0 \
+  pillow==8.4.0 \
+  grpcio==1.48.2 \
+  protobuf==3.19.6 \
+  werkzeug==2.0.3 \
+  tqdm==4.64.1
 ```
-# check Tensorflow version
+To launch the GUI, run:
+
+```bash
+python3 approxtrain_gui.py
+```
+## Legacy environment
+
+ApproxTrain requires TensorFlow, CUDA Toolkit, cuDNN, GNU C++ compiler and Python 3. We recommend using Python 3.5-3.8 and g++ 5.4.0 or higher. We did the development and testing on an Ubuntu 18.04.6 environment with TensorFlow 2.3.0, CUDA 10.1, cuDNN 7.6.5, g++ 8.4 and Python 3.6.9. A brief guide on installing those dependency versions on an Ubuntu system are given below. Alternatively, if you can follow the official TensorFlow [build guide](https://www.tensorflow.org/install/source).
+
+### TensorFlow 2.3
+
+```bash
+# check TensorFlow version
 python3 -c 'import tensorflow as tf; print(tf.__version__)'
 
-    
-# install tensorflow 2.3.0
+# install TensorFlow 2.3.0
 pip3 install --user Tensorflow==2.3.0
 ```
-   
+
 ### g++ 8
 
-```
+```bash
 # Check g++ version
 g++ -v
-    
+
 # install g++ version 8
-sudo apt -y install  g++-8 
+sudo apt -y install g++-8 
 
 # add g++ 8 as an alternative g++
 sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 8
 
-# update default g++ to version    
+# update default g++ to version
 # Note: you must select the g++-8 from drop down
 sudo update-alternatives --config g++
+```
 
-```    
+Note: Make sure your g++ version is greater than 5.4. Otherwise it may lead to a segmentation fault due to a known issue in TensorFlow.
 
-Note: Make sure your g++ version is greater than 5.4. Otherwise it may lead to a segmentation fault due to a known issue in [Tensorflow]().
-    
-    
 ### CUDA Toolkit 10.1
 
-```
+```bash
 # Check CUDA version
 nvidia-smi
-```     
+```
+
 Download CUDA 10.1 from [CUDA 10.1 archive](https://developer.nvidia.com/cuda-10.1-download-archive-base) and follow the steps in the CUDA documentation.
-    
+
 ### cuDNN 7.6.5
 
-cuDNN is required for other tensorflow official layers, e.g., pooling.
+cuDNN is required for other TensorFlow official layers, e.g., pooling.
 
-Download CuDNN from the [NVIDIA website](https://developer.nvidia.com/cudnn). Note that you will have to register for this. After downloading the tarball:
+Download cuDNN from the [NVIDIA website](https://developer.nvidia.com/cudnn). Note that you will have to register for this. After downloading the tarball:
 
-```
+```bash
 # decompress cuDNN
 tar -xvf cudnn-10.1-linux-x64-v7.6.5.32.tar.xz
 # copy to CUDA tool kit directory
@@ -63,10 +107,10 @@ sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64
 sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
 ```
 
-Further details and alternative installation methods can be found [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
+Further details and alternative installation methods can be found in the [installation guide](https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html).
 
 ## Supporting operands
-| Apporximate Operator | Tensorflow equivalent | Gradient Computation | Status   |
+| Approximate Operator | TensorFlow equivalent | Gradient Computation | Status   |
 |----------------------|-----------------------|----------------------|----------|
 | AMConv2D             | Conv2D                | ✔                    | Complete |
 | denseam              | Dense                 | ✔                    | Complete |
@@ -79,9 +123,9 @@ Further details and alternative installation methods can be found [installation 
 
 In our example, we use *tfds* package to load and preprocess the train/test images. Install *tfds* as:
 
-``
+```
 pip3 install --user tensorflow-datasets
-``
+```
 
 ### Clone the repository
 
@@ -91,58 +135,69 @@ cd ApproxTrain
 ```
 ### Compile the framework with AM Simulator
 
-Warnings come from Tensorflow library could be safely ignored.
-    
-When building is sucessful, `convam_gpu.so` and 'denseam_gpu.so' file are created.
+Warnings come from TensorFlow library could be safely ignored.
+
+When building is successful, `convam_gpu.so` and `denseam_gpu.so` files are created.
 
 ```
 make clean && make convam MULTIPLIER=AMSIMULATOR && make denseam_gpu.so MULTIPLIER=AMSIMULATOR
 ```
 
-If you do not specify AMSIMULATOR, framework will be built with native hardware multiplication FP32 (* operator).
+If you do not specify AMSIMULATOR, framework will be built with native hardware multiplication FP32 (`*` operator).
 
 ### Using in-built approximate multipliers
-    
-    
-We provides two approximate multipliers, minimally biased multiplier (MBM) and Mitchell logarithm-based (MIT) approximate multiplier with different bit-widths as shown in the table below. (s, e, m) represents sign, exponent and mantissa. For lookup table-based (lut) AM Simulator, we support mantissa bit-width from 1 (16 Bytes) to 11 (16.8 Mb). For multipliers with mantissa bit-width greater or equal to 12, direct C simulation should be used and expect performance degradation. Note that, the number after underscore in column Generate LUT File Name is the mantissa bit-width, which is needed for ApproxTrain to initialize lookup table.
-    
-| Name 						 | Multiplier | Bit-width  |(s, e, m)   |LUT AM Simulator   |Generated LUT File Name   |
-|----------------------------|------------|------------|------------|------------|------------|
-| FMBM32_MULTIPLIER          | MBM        | 32         |(1, 8, 23)  |❌|❌|
-| FMBM16_MULTIPLIER          | MBM        | 16         |(1, 8, 7)   |✔|MBM_7.bin|
-| FMBM14_MULTIPLIER          | MBM        | 14         |(1, 8, 5)   |✔|MBM_5.bin|
-| FMBM12_MULTIPLIER          | MBM        | 12         |(1, 8, 3)   |✔|MBM_3.bin|
-| FMBM10_MULTIPLIER          | MBM        | 10         |(1, 8, 1)   |✔|MBM_1.bin|
-| MITCHEL23_MULTIPLIER       | MIT  | 32         |(1, 8, 23)  |❌|❌|
-| MITCHEL16_MULTIPLIER       | MIT   | 16         |(1, 8, 7)   |✔|MIT_7.bin|
-| MITCHEL14_MULTIPLIER       | MIT   | 14         |(1, 8, 5)   |✔|MIT_5.bin|
-| MITCHEL12_MULTIPLIER       | MIT   | 12         |(1, 8, 3)   |✔|MIT_3.bin|
-| MITCHEL10_MULTIPLIER       | MIT   | 10         |(1, 8, 1)   |✔|MIT_1.bin|
 
-Now generate binary LUT files for AMSimulator
+We provide two approximate multipliers, minimally biased multiplier (MBM) and Mitchell logarithm-based (MIT) approximate multiplier with different bit-widths as shown in the table below. `(s, e, m)` represents sign, exponent and mantissa. For lookup table-based (lut) AM Simulator, we support mantissa bit-width from 1 (16 Bytes) to 11 (16.8 Mb). For multipliers with mantissa bit-width greater or equal to 12, direct C simulation should be used and expect performance degradation. Note that the number after underscore in column `Generated LUT File Name` is the mantissa bit-width, which is needed for ApproxTrain to initialize the lookup table.
+
+| Name                   | Multiplier | Bit-width | (s, e, m)  | LUT AM Simulator | Generated LUT File Name |
+|------------------------|------------|-----------|------------|------------------|-------------------------|
+| FMBM32_MULTIPLIER      | MBM        | 32        | (1, 8, 23) | ❌               | ❌                      |
+| FMBM16_MULTIPLIER      | MBM        | 16        | (1, 8, 7)  | ✔                | MBM_7.bin               |
+| FMBM14_MULTIPLIER      | MBM        | 14        | (1, 8, 5)  | ✔                | MBM_5.bin               |
+| FMBM12_MULTIPLIER      | MBM        | 12        | (1, 8, 3)  | ✔                | MBM_3.bin               |
+| FMBM10_MULTIPLIER      | MBM        | 10        | (1, 8, 1)  | ✔                | MBM_1.bin               |
+| MITCHEL23_MULTIPLIER   | MIT        | 32        | (1, 8, 23) | ❌               | ❌                      |
+| MITCHEL16_MULTIPLIER   | MIT        | 16        | (1, 8, 7)  | ✔                | MIT_7.bin               |
+| MITCHEL14_MULTIPLIER   | MIT        | 14        | (1, 8, 5)  | ✔                | MIT_5.bin               |
+| MITCHEL12_MULTIPLIER   | MIT        | 12        | (1, 8, 3)  | ✔                | MIT_3.bin               |
+| MITCHEL10_MULTIPLIER   | MIT        | 10        | (1, 8, 1)  | ✔                | MIT_1.bin               |
+
+Now generate binary LUT files for AM Simulator:
 
 ```
 cd lut
 ./lut_gen.sh
 ```
-Now, launch the example script with preferred approximate multiplier (e.g. FMBM16_MULTIPLIER) as:
-    
+
+Now launch the example script with preferred approximate multiplier (e.g. FMBM16_MULTIPLIER) as:
+
 ```
 python3 mnist_example.py --mul="lut/MBM_7.bin"
-```    
+```
 
-You would expect 98% accuracy or higher, if everything works properly.
- 
-If you are not sure about whether you are running GPU or not, run the following commands.
+### Or, Launch the GUI
+
+If you want to use the GUI to do this same action, make sure your environment is active and run:
+
+```
+python3 approxtrain_gui.py
+```
+
+After that, you can go to "Train" > Select "mnist_example.py" for Script, "MBM_7.bin" for the MLUT, and turn on approximate mode.
+
+You would expect 98% accuracy or higher if everything works properly.
+
+
+If you are not sure whether you are running GPU or not, run the following command:
 
 ```
 python3 -c 'import tensorflow as tf; print(tf.test.gpu_device_name())'
 ```
-  
-## For Developers    
+
+## For Developers
 
 If you are interested in adding your own multiplier or your own dataset, please visit the [developers guide](developer.md).
-    
+
 ## Troubleshooting
 
 TODO
@@ -155,7 +210,7 @@ Minimally biased multipliers: [Minimally Biased Multipliers for Approximate Inte
 Some code snippets have been taken from [tfapprox](https://github.com/ehw-fit/tf-approximate), [add custom operand to tensorflow](https://github.com/tensorflow/custom-op) and [tensorflow](https://github.com/tensorflow/tensorflow).
 
 ## Citing ApproxTrain
-If ApproxTrain helps you in your academic research, you are encouraged to cite our paper. 
+If ApproxTrain helps you in your academic research, you are encouraged to cite our paper.
 ```
 @ARTICLE{approxtrain-tcad,
   author={Gong, Jing and Saadat, Hassaan and Gamaarachchi, Hasindu and Javaid, Haris and Hu, Xiaobo Sharon and Parameswaran, Sri},
